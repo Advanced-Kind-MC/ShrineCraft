@@ -1,0 +1,23 @@
+name: ${project.name}
+version: ${project.version}
+description: ${project.description}
+load: POSTWORLD
+api-version: '1.16'
+author: Hugo B.
+authors:
+  - Matt12
+
+main: ${project.groupId}.${project.artifactId}.${project.mainClass}
+prefix: ${project.shortName}
+
+database: false
+
+depend: []
+softdepend: []
+loadbefore: []
+
+commands:
+
+permissions:
+
+

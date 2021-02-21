@@ -1,0 +1,26 @@
+animation:
+  refreshes-per-second: 5
+  degrees-per-second: 30
+shrines:
+- design:
+  -
+    - [STONE, STONE, STONE]
+    - [STONE, DIAMOND_BLOCK, STONE]
+    - [STONE, STONE, STONE]
+  offset: 
+    x: 1 
+    y: 0 
+    z: 1
+  recepies:
+  - in:
+    - STICK
+    - material: COBBLESTONE
+      amount: 64
+    out:
+      material: STONE
+      name: poop
+      lore:
+        - a
+        - poop
+        - sir
+      customModel: 11
