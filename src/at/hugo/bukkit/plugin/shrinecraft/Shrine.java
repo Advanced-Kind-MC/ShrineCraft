@@ -8,28 +8,29 @@ import java.util.List;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Item;
 import org.bukkit.inventory.ItemStack;
 
 public class Shrine {
     private Material[][][] design;
-    private int xOffset, yOffset, zOffset;
+    private final int xOffset, yOffset, zOffset;
 
-    private LinkedList<Recepie> recepies = new LinkedList<>();
+    private final LinkedList<Recepie> recepies = new LinkedList<>();
 
-    public Shrine(ConfigurationSection configurationSection) {
-        List<List<List<String>>> configDesign = (List<List<List<String>>>) configurationSection.getList("design");
+    public Shrine(final ConfigurationSection configurationSection) {
+        final List<List<List<String>>> configDesign = (List<List<List<String>>>) configurationSection.getList("design");
         {
             int y = 0;
             this.design = new Material[configDesign.size()][][];
-            for (List<List<String>> list : configDesign) {
+            for (final List<List<String>> list : configDesign) {
                 int z = 0;
                 this.design[y] = new Material[list.size()][];
-                for (List<String> list2 : list) {
+                for (final List<String> list2 : list) {
                     int x = 0;
                     this.design[y][z] = new Material[list2.size()];
-                    for (String materialName : list2) {
+                    for (final String materialName : list2) {
                         this.design[y][z][x] = Material.matchMaterial(materialName);
                         ++x;
                     }
@@ -38,22 +39,22 @@ public class Shrine {
                 ++y;
             }
         }
-        
-        List<Object> recepiesConfig = (List<Object>) configurationSection.getList("recepies");
 
-        for (Object recepieObject : recepiesConfig) {
-            ConfigurationSection recepieConfig = Utils.objectToConfigurationSection(recepieObject);
+        final List<?> recepiesConfig = configurationSection.getList("recepies");
+
+        for (final Object recepieObject : recepiesConfig) {
+            final ConfigurationSection recepieConfig = Utils.objectToConfigurationSection(recepieObject);
             recepies.add(new Recepie(recepieConfig));
         }
 
-        ConfigurationSection offsets = Utils.objectToConfigurationSection(configurationSection.get("offset"));
+        final ConfigurationSection offsets = Utils.objectToConfigurationSection(configurationSection.get("offset"));
         xOffset = offsets.getInt("x");
         yOffset = offsets.getInt("y");
         zOffset = offsets.getInt("z");
 
         for (int y = 0; y < this.design.length; y++) {
             for (int z = 0; z < this.design[y].length; z++) {
-                ArrayList<String> output = new ArrayList<>(this.design[y].length);
+                final ArrayList<String> output = new ArrayList<>(this.design[y].length);
                 for (int x = 0; x < this.design[y][z].length; x++) {
                     output.add(this.design[y][z][x].toString());
                 }
@@ -69,39 +70,86 @@ public class Shrine {
         return design[yOffset][zOffset][xOffset];
     }
 
-    public boolean isAt(Block block) {
+    public boolean isAt(final Block block) {
         if (!getCraftingBlockMaterial().equals(block.getType()))
             return false;
 
-        Block startingBlock = block.getRelative(-xOffset, -yOffset, -zOffset);
-        for (int y = 0; y < this.design.length; y++) {
-            for (int z = 0; z < this.design[y].length; z++) {
-                for (int x = 0; x < this.design[y][z].length; x++) {
-                    if (this.design[y][z][x] != null
-                            && !this.design[y][z][x].equals(startingBlock.getRelative(x, y, z).getType()))
-                        return false;
-                }
-            }
-        }
-        return true;
+        return isAt(block, BlockFace.NORTH) || isAt(block, BlockFace.EAST) || isAt(block, BlockFace.SOUTH)
+                || isAt(block, BlockFace.WEST);
     }
 
-	public ItemStack getRecepie(Collection<Item> items) {
-        for (Recepie recepie : recepies) {
-            ItemStack result = recepie.isFullfilledBy(items);
-            if(result != null){
+    public ItemStack getRecepie(final Collection<Item> items) {
+        for (final Recepie recepie : recepies) {
+            final ItemStack result = recepie.isFullfilledBy(items);
+            if (result != null) {
                 return result;
             }
         }
-		return null;
-	}
+        return null;
+    }
 
-	public boolean hasSimilarRecepie(Collection<Item> items) {
-        for (Recepie recepie : recepies) {
-            if(recepie.isSemiFulfilled(items)){
+    public boolean hasSimilarRecepie(final Collection<Item> items) {
+        for (final Recepie recepie : recepies) {
+            if (recepie.isSemiFulfilled(items)) {
                 return true;
             }
         }
-		return false;
-	}
+        return false;
+    }
+
+    private boolean isAt(final Block block, BlockFace direction) {
+        Block startingBlock;
+        switch (direction) {
+            case NORTH:
+                startingBlock = block.getRelative(-xOffset, -yOffset, -zOffset);
+                for (int y = 0; y > -this.design.length; y--) {
+                    for (int z = 0; z < this.design[y].length; z++) {
+                        for (int x = 0; x < this.design[y][z].length; x++) {
+                            if (this.design[y][z][x] != null
+                                    && !this.design[y][z][x].equals(startingBlock.getRelative(x, y, z).getType()))
+                                return false;
+                        }
+                    }
+                }
+                break;
+            case SOUTH:
+                startingBlock = block.getRelative(xOffset, -yOffset, zOffset);
+                for (int y = 0; y > -this.design.length; y--) {
+                    for (int z = this.design[y].length-1; z >= 0; z--) {
+                        for (int x = this.design[y][z].length-1; x >= 0; x--) {
+                            if (this.design[y][z][x] != null
+                                    && !this.design[y][z][x].equals(startingBlock.getRelative(x, y, z).getType()))
+                                return false;
+                        }
+                    }
+                }
+                break;
+            case EAST:
+                startingBlock = block.getRelative(zOffset, -yOffset, -xOffset);
+                for (int y = 0; y > -this.design.length; y--) {
+                    for (int z = this.design[y].length-1; z >= 0; z--) {
+                        for (int x = 0; x < this.design[y][z].length; x++) {
+                            if (this.design[y][z][x] != null
+                                    && !this.design[y][z][x].equals(startingBlock.getRelative(x, y, z).getType()))
+                                return false;
+                        }
+                    }
+                }
+                break;
+            case WEST:
+                startingBlock = block.getRelative(-zOffset, -yOffset, xOffset);
+                for (int y = 0; y > -this.design.length; y--) {
+                    for (int z = 0; z < this.design[y].length; z++) {
+                        for (int x = this.design[y][z].length-1; x >= 0; x--) {
+                            if (this.design[y][z][x] != null
+                                    && !this.design[y][z][x].equals(startingBlock.getRelative(x, y, z).getType()))
+                                return false;
+                        }
+                    }
+                }
+                break;
+
+        }
+        return true;
+    }
 }

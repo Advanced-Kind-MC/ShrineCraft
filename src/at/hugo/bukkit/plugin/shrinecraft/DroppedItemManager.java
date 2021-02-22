@@ -38,13 +38,10 @@ public class DroppedItemManager {
             Item item = entry.getKey();
             UUID uuid = entry.getValue();
             if(item.isDead()){
-                
                 Bukkit.getServer().broadcastMessage("Removed item "+ item.getItemStack().getType()+", which died by "+item.getLastDamageCause().getCause());
             } else if(item.isOnGround()){
-                //Bukkit.getServer().broadcastMessage("Landed on the Ground "+ item.getItemStack().getType());
                 Bukkit.getPluginManager().callEvent(new ItemLandEvent(item,item.getLocation().getBlock().getRelative(BlockFace.DOWN)));
             } else if( item.isInWater()) {
-                //Bukkit.getServer().broadcastMessage("Landed in water "+ item.getItemStack().getType());
                 Bukkit.getPluginManager().callEvent(new ItemLandEvent(item,item.getLocation().getBlock()));
             } else{
                 continue;

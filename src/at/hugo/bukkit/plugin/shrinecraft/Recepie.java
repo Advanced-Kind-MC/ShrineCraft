@@ -82,7 +82,7 @@ public class Recepie {
     private final ItemStack result;
 
     public Recepie(final ConfigurationSection recepieConfig) {
-        final List in = recepieConfig.getList("in");
+        final List<?> in = recepieConfig.getList("in");
         for (final Object object : in) {
             if (object instanceof String) {
                 recepieItems.add(new RecepieItem(1, Material.matchMaterial((String) object), null, null, null));
