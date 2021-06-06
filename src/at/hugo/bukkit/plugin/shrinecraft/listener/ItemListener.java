@@ -21,7 +21,6 @@ public class ItemListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDropItem(PlayerDropItemEvent event) {
         droppedItemManager.add(event.getItemDrop(), event.getPlayer());
-        Bukkit.getLogger().info("New item: " + event.getItemDrop().getCustomName());
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -29,7 +28,5 @@ public class ItemListener implements Listener {
         UUID uuid = droppedItemManager.remove(event.getEntity());
         if(uuid == null) return;
         droppedItemManager.add(event.getTarget(), uuid);
-        Bukkit.getLogger().info("Item Merged: " + event.getTarget().getItemStack().getItemMeta().getDisplayName());
-        Bukkit.getLogger().info("Item Merged to: " + event.getTarget().getItemStack().getItemMeta().getDisplayName());
     }
 }

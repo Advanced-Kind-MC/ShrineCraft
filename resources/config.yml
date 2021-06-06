@@ -1,6 +1,6 @@
 animation:
   refreshes-per-second: 5
-  degrees-per-second: 30
+  degrees-per-second: 60
 shrines:
 - design:
   -
@@ -11,7 +11,7 @@ shrines:
     x: 1 
     y: 0 
     z: 1
-  recepies:
+  recipes:
   - in:
     - STICK
     - material: COBBLESTONE

@@ -1,155 +1,85 @@
 package at.hugo.bukkit.plugin.shrinecraft;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
-
-import org.bukkit.Bukkit;
-import org.bukkit.Material;
+import org.bukkit.Location;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockFace;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Item;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.function.BiConsumer;
 
 public class Shrine {
-    private Material[][][] design;
-    private final int xOffset, yOffset, zOffset;
+    private final @NotNull ShrineInfo shrineInfo;
+    private final @NotNull Location center;
 
-    private final LinkedList<Recepie> recepies = new LinkedList<>();
+    private final @NotNull Location itemCenter;
 
-    public Shrine(final ConfigurationSection configurationSection) {
-        final List<List<List<String>>> configDesign = (List<List<List<String>>>) configurationSection.getList("design");
-        {
-            int y = 0;
-            this.design = new Material[configDesign.size()][][];
-            for (final List<List<String>> list : configDesign) {
-                int z = 0;
-                this.design[y] = new Material[list.size()][];
-                for (final List<String> list2 : list) {
-                    int x = 0;
-                    this.design[y][z] = new Material[list2.size()];
-                    for (final String materialName : list2) {
-                        this.design[y][z][x] = Material.matchMaterial(materialName);
-                        ++x;
-                    }
-                    ++z;
-                }
-                ++y;
-            }
-        }
+    private final @NotNull ArrayList<Item> items = new ArrayList<>();
 
-        final List<?> recepiesConfig = configurationSection.getList("recepies");
+    private boolean crafting = false;
+    private BiConsumer<Shrine, ItemStack> finishedCraftingConsumer;
 
-        for (final Object recepieObject : recepiesConfig) {
-            final ConfigurationSection recepieConfig = Utils.objectToConfigurationSection(recepieObject);
-            recepies.add(new Recepie(recepieConfig));
-        }
-
-        final ConfigurationSection offsets = Utils.objectToConfigurationSection(configurationSection.get("offset"));
-        xOffset = offsets.getInt("x");
-        yOffset = offsets.getInt("y");
-        zOffset = offsets.getInt("z");
-
-        for (int y = 0; y < this.design.length; y++) {
-            for (int z = 0; z < this.design[y].length; z++) {
-                final ArrayList<String> output = new ArrayList<>(this.design[y].length);
-                for (int x = 0; x < this.design[y][z].length; x++) {
-                    output.add(this.design[y][z][x].toString());
-                }
-                Bukkit.getLogger().info(() -> String.join(", ", output));
-            }
-        }
-        Bukkit.getLogger().info(() -> String.format("Offsets: %s, %s, %s", xOffset, yOffset, zOffset));
-        Bukkit.getLogger().info(() -> "Input block: " + getCraftingBlockMaterial().toString());
-
+    public Shrine(final @NotNull ShrineInfo shrineInfo, @NotNull Location center) {
+        this.shrineInfo = shrineInfo;
+        this.center = center;
+        this.itemCenter = center.clone().add(0, 2, 0);
     }
 
-    public Material getCraftingBlockMaterial() {
-        return design[yOffset][zOffset][xOffset];
+    public boolean canCraftItem() {
+        return shrineInfo.tryCraft(items) != null;
     }
 
-    public boolean isAt(final Block block) {
-        if (!getCraftingBlockMaterial().equals(block.getType()))
-            return false;
-
-        return isAt(block, BlockFace.NORTH) || isAt(block, BlockFace.EAST) || isAt(block, BlockFace.SOUTH)
-                || isAt(block, BlockFace.WEST);
+    public void startCrafting(@NotNull BiConsumer<Shrine, ItemStack> finishedCrafting) {
+        crafting = true;
+        finishedCraftingConsumer = finishedCrafting;
     }
 
-    public ItemStack getRecepie(final Collection<Item> items) {
-        for (final Recepie recepie : recepies) {
-            final ItemStack result = recepie.isFullfilledBy(items);
-            if (result != null) {
-                return result;
-            }
-        }
-        return null;
+    public boolean canAddItem(Item item) {
+        LinkedList<Item> items = new LinkedList<>();
+        items.addAll(this.items);
+        items.add(item);
+        return shrineInfo.hasSimilarRecipe(items);
     }
 
-    public boolean hasSimilarRecepie(final Collection<Item> items) {
-        for (final Recepie recepie : recepies) {
-            if (recepie.isSemiFulfilled(items)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean isAt(final Block block, BlockFace direction) {
-        Block startingBlock;
-        switch (direction) {
-            case NORTH:
-                startingBlock = block.getRelative(-xOffset, -yOffset, -zOffset);
-                for (int y = 0; y > -this.design.length; y--) {
-                    for (int z = 0; z < this.design[y].length; z++) {
-                        for (int x = 0; x < this.design[y][z].length; x++) {
-                            if (this.design[y][z][x] != null
-                                    && !this.design[y][z][x].equals(startingBlock.getRelative(x, y, z).getType()))
-                                return false;
-                        }
-                    }
-                }
-                break;
-            case SOUTH:
-                startingBlock = block.getRelative(xOffset, -yOffset, zOffset);
-                for (int y = 0; y > -this.design.length; y--) {
-                    for (int z = this.design[y].length-1; z >= 0; z--) {
-                        for (int x = this.design[y][z].length-1; x >= 0; x--) {
-                            if (this.design[y][z][x] != null
-                                    && !this.design[y][z][x].equals(startingBlock.getRelative(x, y, z).getType()))
-                                return false;
-                        }
-                    }
-                }
-                break;
-            case EAST:
-                startingBlock = block.getRelative(zOffset, -yOffset, -xOffset);
-                for (int y = 0; y > -this.design.length; y--) {
-                    for (int z = this.design[y].length-1; z >= 0; z--) {
-                        for (int x = 0; x < this.design[y][z].length; x++) {
-                            if (this.design[y][z][x] != null
-                                    && !this.design[y][z][x].equals(startingBlock.getRelative(x, y, z).getType()))
-                                return false;
-                        }
-                    }
-                }
-                break;
-            case WEST:
-                startingBlock = block.getRelative(-zOffset, -yOffset, xOffset);
-                for (int y = 0; y > -this.design.length; y--) {
-                    for (int z = 0; z < this.design[y].length; z++) {
-                        for (int x = this.design[y][z].length-1; x >= 0; x--) {
-                            if (this.design[y][z][x] != null
-                                    && !this.design[y][z][x].equals(startingBlock.getRelative(x, y, z).getType()))
-                                return false;
-                        }
-                    }
-                }
-                break;
-
-        }
+    public boolean addItem(Item item) {
+        items.add(item);
+        item.setGravity(false);
         return true;
+    }
+
+    public boolean isAt(Block block) {
+        return shrineInfo.isAt(block);
+    }
+
+    @NotNull
+    public List<Item> discardItems() {
+        List<Item> result = List.copyOf(items);
+        items.clear();
+        result.forEach(item -> item.setGravity(true));
+        return result;
+    }
+
+    public void addAllItems(List<Item> items) {
+        items.forEach(item -> item.setGravity(false));
+        this.items.addAll(items);
+    }
+
+    public List<Item> getItems() {
+        return List.copyOf(items);
+    }
+
+    public ShrineInfo getShrineInfo() {
+        return shrineInfo;
+    }
+
+    public void animate(long time, double radiansPerFrame, int ticksTillNextFrame) {
+        if (!crafting) {
+            shrineInfo.getIdleAnimation().animate(items, itemCenter, time, radiansPerFrame, ticksTillNextFrame);
+        } else if (shrineInfo.getMergeAnimation().animate(items, itemCenter, time, radiansPerFrame, ticksTillNextFrame)) {
+            finishedCraftingConsumer.accept(this, shrineInfo.tryCraft(items));
+        }
     }
 }

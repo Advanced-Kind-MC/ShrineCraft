@@ -16,7 +16,7 @@ public class ShrineCraftPlugin extends JavaPlugin {
         saveDefaultConfig();
         commandManager = new PaperCommandManager(this);
         droppedItemManager = new DroppedItemManager(this);
-        shrineManager = new ShrineManager(this, getConfig().getDouble("animation.refreshes-per-second"),
+        shrineManager = new ShrineManager(this, getConfig().getInt("animation.ticks-between-refreshes"),
                 getConfig().getDouble("animation.degrees-per-second"));
         getServer().getPluginManager().registerEvents(new ItemListener(droppedItemManager), this);
         getServer().getPluginManager().registerEvents(shrineManager, this);
@@ -25,6 +25,6 @@ public class ShrineCraftPlugin extends JavaPlugin {
 
     public void reload() {
         reloadConfig();
-        shrineManager.update(getConfig().getDouble("animation.refreshes-per-second"), getConfig().getDouble("animation.degrees-per-second"));
+        shrineManager.update(getConfig().getInt("animation.ticks-between-refreshes"), getConfig().getDouble("animation.degrees-per-second"));
     }
 }
