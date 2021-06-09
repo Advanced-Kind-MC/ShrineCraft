@@ -1,0 +1,12 @@
+example:
+  materials:
+    - - [ STONE, STONE, STONE ]
+      - [ STONE, LAVA, STONE ]
+      - [ STONE, STONE, STONE ]
+    - - [ STONE, STONE, STONE ]
+      - [ STONE, STONE, STONE ]
+      - [ STONE, STONE, STONE ]
+  input-offset:
+    x: 1
+    y: 1
+    z: 1

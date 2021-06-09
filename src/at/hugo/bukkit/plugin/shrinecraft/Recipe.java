@@ -6,6 +6,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.advancedkind.plugin.utils.utils.ConfigUtils;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.text.serializer.plain.PlainComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -15,15 +18,15 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 public class Recipe {
 
-    private class RecepieItem {
+    private static class RecipeItem {
         final int amount;
         final Material material;
         final Integer customModel;
         final String name;
         final List<String> lore;
 
-        public RecepieItem(final int amount, final Material material, final Integer customModel, final String name,
-                final List<String> lore) {
+        public RecipeItem(final int amount, final Material material, final Integer customModel, final String name,
+                          final List<String> lore) {
             this.amount = amount;
             this.material = material;
             this.customModel = customModel;
@@ -39,15 +42,16 @@ public class Recipe {
                     continue;
                 if (customModel != null && meta.getCustomModelData() != customModel)
                     continue;
-                if (name != null && (!meta.hasDisplayName() || !meta.getDisplayName().equals(name)))
+                if (name != null && (!meta.hasDisplayName() || !PlainComponentSerializer.plain().serialize(meta.displayName()).equals(name)))
                     continue;
-                if (lore != null && !lore.isEmpty() && (!meta.hasLore() || !meta.getLore().containsAll(lore)))
+                if (lore != null && !lore.isEmpty() && (!meta.hasLore() || !meta.lore().stream().map(PlainComponentSerializer.plain()::serialize).collect(Collectors.toList()).containsAll(lore)))
                     continue;
                 count += item.getAmount();
             }
             return count >= amount;
         }
-        void reduceListWithApplyingItems(Collection<ItemStack> items){
+
+        void reduceListWithApplyingItems(Collection<ItemStack> items) {
             int count = amount;
             Iterator<ItemStack> iterator = items.iterator();
             while (iterator.hasNext()) {
@@ -57,45 +61,46 @@ public class Recipe {
                     continue;
                 if (customModel != null && meta.getCustomModelData() != customModel)
                     continue;
-                if (name != null && (!meta.hasDisplayName() || !meta.getDisplayName().equals(name)))
+                if (name != null && (!meta.hasDisplayName() || !PlainComponentSerializer.plain().serialize(meta.displayName()).equals(name)))
                     continue;
-                if (lore != null && !lore.isEmpty() && (!meta.hasLore() || !meta.getLore().containsAll(lore)))
+                if (lore != null && !lore.isEmpty() && (!meta.hasLore() || !meta.lore().stream().map(PlainComponentSerializer.plain()::serialize).collect(Collectors.toList()).containsAll(lore)))
                     continue;
-                if(count >= item.getAmount()){
+                if (count >= item.getAmount()) {
                     count -= item.getAmount();
                     iterator.remove();
-                    if(count == 0)
+                    if (count == 0)
                         return;
                 } else {
-                    item.setAmount(item.getAmount()-count);
+                    item.setAmount(item.getAmount() - count);
                     return;
                 }
             }
         }
+
         @Override
         public String toString() {
             return String.format("%s (%s): %s; %s", material.toString(), amount, name, customModel);
         }
     }
 
-    private final LinkedList<RecepieItem> recepieItems = new LinkedList<>();
+    private final LinkedList<RecipeItem> recipeItems = new LinkedList<>();
     private final ItemStack result;
 
-    public Recipe(final ConfigurationSection recepieConfig) {
-        final List<?> in = recepieConfig.getList("in");
+    public Recipe(final ConfigurationSection recipeConfig) {
+        final List<?> in = recipeConfig.getList("in");
         for (final Object object : in) {
             if (object instanceof String) {
-                recepieItems.add(new RecepieItem(1, Material.matchMaterial((String) object), null, null, null));
+                recipeItems.add(new RecipeItem(1, ConfigUtils.getMaterial((String) object), null, null, null));
                 continue;
             }
-            final ConfigurationSection configurationSection = Utils.objectToConfigurationSection(object);
+            final ConfigurationSection configurationSection = ConfigUtils.objectToConfigurationSection(object);
             if (configurationSection == null) {
-                Bukkit.getLogger().severe("Could not load recepie!");
+                Bukkit.getLogger().severe("Could not load recipe!");
                 continue;
             }
-            final Material material = Material.matchMaterial(configurationSection.getString("material"));
-            if(material == null) {
-                Bukkit.getLogger().severe("Unknown Material \""+configurationSection.getString("material")+"\" for your item inputs");
+            final Material material = ConfigUtils.getMaterial(configurationSection, "material");
+            if (material == null) {
+                Bukkit.getLogger().severe("Unknown Material \"" + configurationSection.getString("material") + "\" for your item inputs");
                 continue;
             }
             final int amount = configurationSection.getInt("amount", 1);
@@ -104,43 +109,44 @@ public class Recipe {
                 customModel = null;
             final String name = configurationSection.getString("name", null);
             final List<String> lore = configurationSection.getStringList("lore");
-            recepieItems.add(new RecepieItem(amount, material, customModel, name, lore));
+            recipeItems.add(new RecipeItem(amount, material, customModel, name, lore));
 
         }
-        
-        final ConfigurationSection outConfig = Utils.objectToConfigurationSection(recepieConfig.get("out"));
-        result = new ItemStack(Material.matchMaterial(outConfig.getString("material")));
-        if(outConfig.isInt("amount"))
+
+        final ConfigurationSection outConfig = ConfigUtils.objectToConfigurationSection(recipeConfig.get("out"));
+        result = new ItemStack(ConfigUtils.getMaterial(outConfig, "material"));
+        if (outConfig.isInt("amount"))
             result.setAmount(outConfig.getInt("amount"));
         ItemMeta meta = result.getItemMeta();
-        if(outConfig.isString("name"))
-            meta.setDisplayName(Utils.colorize(outConfig.getString("name")));
-        if(outConfig.isList("lore"))
-            meta.setLore(outConfig.getStringList("lore").stream().map(Utils::colorize).collect(Collectors.toList()));
-        if(outConfig.isInt("customModel"))
+        if (outConfig.isString("name"))
+            meta.displayName(ConfigUtils.getComponent(outConfig, "name"));
+
+        if (outConfig.isList("lore"))
+            meta.lore(outConfig.getStringList("lore").stream().map(LegacyComponentSerializer.legacyAmpersand()::deserialize).collect(Collectors.toList()));
+        if (outConfig.isInt("customModel"))
             meta.setCustomModelData(outConfig.getInt("customModel"));
         result.setItemMeta(meta);
 
-        for (RecepieItem item : recepieItems) {
+        for (RecipeItem item : recipeItems) {
             Bukkit.getLogger().info(item.toString());
         }
     }
 
-    public ItemStack isFullfilledBy(final Collection<Item> items) {
+    public ItemStack isFulfilledBy(final Collection<Item> items) {
         final Collection<ItemStack> itemStacks = Utils.condenseItemsToItemStacks(items);
-        for (final RecepieItem item : recepieItems) {
-            if(!item.isFulfilledBy(itemStacks))
+        for (final RecipeItem item : recipeItems) {
+            if (!item.isFulfilledBy(itemStacks))
                 return null;
         }
-		return result;
-	}
+        return result;
+    }
 
-	public boolean isSemiFulfilled(Collection<Item> items) {
+    public boolean isSemiFulfilled(Collection<Item> items) {
         final Collection<ItemStack> itemStacks = Utils.condenseItemsToItemStacks(items);
-        for (final RecepieItem item : recepieItems) {
-           item.reduceListWithApplyingItems(itemStacks);
+        for (final RecipeItem item : recipeItems) {
+            item.reduceListWithApplyingItems(itemStacks);
         }
-		return itemStacks.isEmpty();
-	}
+        return itemStacks.isEmpty();
+    }
 
 }

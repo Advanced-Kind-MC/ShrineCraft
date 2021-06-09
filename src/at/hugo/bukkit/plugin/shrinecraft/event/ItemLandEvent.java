@@ -5,21 +5,20 @@ import org.bukkit.entity.Item;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.UUID;
 
 public class ItemLandEvent extends Event implements Cancellable {
     private static final HandlerList HANDLERS_LIST = new HandlerList();
     private boolean isCancelled = false;
-    private Item item;
-    private Block landedOnBlock;
+    private final @NotNull Item item;
+    private final @NotNull Block landedOnBlock;
+    private final @NotNull UUID dropper;
 
-    public ItemLandEvent(Item item, Block landedOnBlock) {
+    public ItemLandEvent(@NotNull Item item, @NotNull Block landedOnBlock, @NotNull UUID dropper) {
         this.landedOnBlock = landedOnBlock;
-        this.item = item;
-    }
-
-    public ItemLandEvent(boolean isAsync, Item item, Block landedOnBlock) {
-        super(isAsync);
-        this.landedOnBlock = landedOnBlock;
+        this.dropper = dropper;
         this.item = item;
     }
 
@@ -28,7 +27,7 @@ public class ItemLandEvent extends Event implements Cancellable {
     }
 
     @Override
-    public HandlerList getHandlers() {
+    public @NotNull HandlerList getHandlers() {
         return getHandlerList();
     }
 
@@ -42,11 +41,18 @@ public class ItemLandEvent extends Event implements Cancellable {
         isCancelled = cancel;
     }
 
-    public Item getItem() {
+    public @NotNull Item getItem() {
         return item;
     }
 
-    public Block getLandedOBlock() {
+    public @NotNull Block getLandedOBlock() {
         return landedOnBlock;
+    }
+
+    /**
+     * @return the UUID of the player who dropped the item
+     */
+    public @NotNull UUID getDropper() {
+        return dropper;
     }
 }

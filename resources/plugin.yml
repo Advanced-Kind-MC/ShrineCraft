@@ -10,14 +10,21 @@ authors:
 main: ${project.groupId}.${project.artifactId}.${project.mainClass}
 prefix: ${project.shortName}
 
-database: false
-
-depend: []
-softdepend: []
-loadbefore: []
-
-commands:
+softdepend:
+  - WorldEdit
 
 permissions:
+  shrinecraft.command:
+    description: allows the usage of /shrinecraft
+  shrinecraft.command.reload:
+    description: allows the reload of ShrineCraft via "/shrinecraft reload"
+    children:
+      shrinecraft.command: true
+  shrinecraft.command.setdesign:
+    description: allows to set a design via "/shrinecraft setdesign <design name>"
+    children:
+      shrinecraft.command: true
+
+
 
 

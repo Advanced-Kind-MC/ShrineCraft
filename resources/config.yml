@@ -1,16 +1,11 @@
+shrine-timeout: 60
+shrine-max-distance: 15
 animation:
-  refreshes-per-second: 5
-  degrees-per-second: 60
+  ticks-between-refreshes: 5
+  degrees-per-second: 45
+
 shrines:
-- design:
-  -
-    - [STONE, STONE, STONE]
-    - [STONE, DIAMOND_BLOCK, STONE]
-    - [STONE, STONE, STONE]
-  offset: 
-    x: 1 
-    y: 0 
-    z: 1
+- design: example
   recipes:
   - in:
     - STICK

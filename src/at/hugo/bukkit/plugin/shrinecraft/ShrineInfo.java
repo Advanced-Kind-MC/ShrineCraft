@@ -1,6 +1,5 @@
 package at.hugo.bukkit.plugin.shrinecraft;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.LinkedList;
@@ -10,112 +9,75 @@ import at.hugo.bukkit.plugin.shrinecraft.animation.idle.CircularIdleAnimation;
 import at.hugo.bukkit.plugin.shrinecraft.animation.idle.IIdleAnimation;
 import at.hugo.bukkit.plugin.shrinecraft.animation.merge.IMergeAnimation;
 import at.hugo.bukkit.plugin.shrinecraft.animation.merge.SimpleMergeAnimation;
-import org.bukkit.Bukkit;
+import at.hugo.bukkit.plugin.shrinecraft.manager.DesignManager;
+import com.advancedkind.plugin.utils.utils.ConfigUtils;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockFace;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Item;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 
 public class ShrineInfo {
-    private Material[][][] design;
-    private final int xOffset, yOffset, zOffset;
+    private final @NotNull ShrineCraftPlugin plugin;
+
+    private final @NotNull String designKey;
 
     private final @NotNull IIdleAnimation idleAnimation;
     private final @NotNull IMergeAnimation mergeAnimation;
 
     private final LinkedList<Recipe> recipes = new LinkedList<>();
-    private final EnumSet<BlockFace> directions = EnumSet.noneOf(BlockFace.class);
+    private final EnumSet<DesignManager.Design.Direction> directions = EnumSet.noneOf(DesignManager.Design.Direction.class);
 
-    public ShrineInfo(final ConfigurationSection configurationSection) {
-        final List<List<List<String>>> configDesign = (List<List<List<String>>>) configurationSection.getList("design");
-        {
-            int y = 0;
-            this.design = new Material[configDesign.size()][][];
-            for (final List<List<String>> list : configDesign) {
-                int z = 0;
-                this.design[y] = new Material[list.size()][];
-                for (final List<String> list2 : list) {
-                    int x = 0;
-                    this.design[y][z] = new Material[list2.size()];
-                    for (final String materialName : list2) {
-                        if(materialName == null || materialName.isBlank() || materialName.equalsIgnoreCase("null"))
-                            this.design[y][z][x]=null;
-                        else
-                            this.design[y][z][x] =  Material.matchMaterial(materialName);
-                        ++x;
-                    }
-                    ++z;
-                }
-                ++y;
-            }
-        }
+    public ShrineInfo(@NotNull ShrineCraftPlugin plugin, final ConfigurationSection configurationSection) {
+        this.plugin = plugin;
+
+        this.designKey = configurationSection.getString("design");
 
         final List<?> recipesConfig = configurationSection.getList("recipes");
 
         for (final Object recipeObject : recipesConfig) {
-            final ConfigurationSection recipeConfig = Utils.objectToConfigurationSection(recipeObject);
+            final ConfigurationSection recipeConfig = ConfigUtils.objectToConfigurationSection(recipeObject);
             recipes.add(new Recipe(recipeConfig));
         }
 
-        final ConfigurationSection offsets = Utils.objectToConfigurationSection(configurationSection.get("offset"));
-        xOffset = offsets.getInt("x");
-        yOffset = offsets.getInt("y");
-        zOffset = offsets.getInt("z");
-
         if (configurationSection.isString("direction")) {
             String direction = configurationSection.getString("direction");
-            directions.add(BlockFace.valueOf(direction));
+            directions.add(DesignManager.Design.Direction.valueOf(direction));
         } else if (configurationSection.isList("direction")) {
-            configurationSection.getStringList("direction").forEach(direction -> this.directions.add(BlockFace.valueOf(direction)));
+            configurationSection.getStringList("direction").forEach(direction -> this.directions.add(DesignManager.Design.Direction.valueOf(direction)));
         } else {
-            directions.add(BlockFace.NORTH);
-            directions.add(BlockFace.EAST);
-            directions.add(BlockFace.SOUTH);
-            directions.add(BlockFace.WEST);
+            directions.add(DesignManager.Design.Direction.NORTH);
+            directions.add(DesignManager.Design.Direction.EAST);
+            directions.add(DesignManager.Design.Direction.SOUTH);
+            directions.add(DesignManager.Design.Direction.WEST);
         }
-        switch (configurationSection.getString("animation.idle", "circular")){
+        switch (configurationSection.getString("animation.idle", "circular")) {
             default:
                 idleAnimation = new CircularIdleAnimation();
         }
-        switch (configurationSection.getString("animation.idle", "simple")){
+        switch (configurationSection.getString("animation.idle", "simple")) {
             default:
                 mergeAnimation = new SimpleMergeAnimation();
         }
-//        for (int y = 0; y < this.design.length; y++) {
-//            for (int z = 0; z < this.design[y].length; z++) {
-//                final ArrayList<String> output = new ArrayList<>(this.design[y].length);
-//                for (int x = 0; x < this.design[y][z].length; x++) {
-//                    if(this.design[y][z][x] == null)
-//                        output.add("     ");
-//                    else
-//                        output.add(this.design[y][z][x].toString());
-//                }
-//                Bukkit.getLogger().info(() -> String.join(", ", output));
-//            }
-//        }
-        Bukkit.getLogger().info(() -> String.format("Offsets: %s, %s, %s", xOffset, yOffset, zOffset));
-        Bukkit.getLogger().info(() -> "Input block: " + getCraftingBlockMaterial().toString());
-
     }
 
-    public IIdleAnimation getIdleAnimation() {
+    public @NotNull IIdleAnimation getIdleAnimation() {
         return idleAnimation;
     }
 
-    public IMergeAnimation getMergeAnimation() {
+    public @NotNull IMergeAnimation getMergeAnimation() {
         return mergeAnimation;
     }
 
     public Material getCraftingBlockMaterial() {
-        return design[yOffset][zOffset][xOffset];
+        return plugin.getDesignManager().getDesign(designKey).getInputBlockMaterial();
     }
 
     public ItemStack tryCraft(final Collection<Item> items) {
         for (final Recipe recipe : recipes) {
-            final ItemStack result = recipe.isFullfilledBy(items);
+            final ItemStack result = recipe.isFulfilledBy(items);
             if (result != null) {
                 return result;
             }
@@ -135,65 +97,29 @@ public class ShrineInfo {
     public boolean isAt(final Block block) {
         if (!getCraftingBlockMaterial().equals(block.getType()))
             return false;
-        for (BlockFace direction : directions) {
-            if(isAt(block,direction))
+        for (var direction : directions) {
+            if (isAt(block, direction))
                 return true;
         }
         return false;
     }
 
-    private boolean isAt(final Block block, BlockFace direction) {
-        Block startingBlock;
-        switch (direction) {
-            case NORTH:
-                startingBlock = block.getRelative(-xOffset, -yOffset, -zOffset);
-                for (int y = 0; y > -this.design.length; y--) {
-                    for (int z = 0; z < this.design[y].length; z++) {
-                        for (int x = 0; x < this.design[y][z].length; x++) {
-                            if (this.design[y][z][x] != null
-                                    && !this.design[y][z][x].equals(startingBlock.getRelative(x, y, z).getType()))
-                                return false;
-                        }
+    private boolean isAt(final Block block, DesignManager.Design.Direction direction) {
+        DesignManager.Design design = plugin.getDesignManager().getDesign(designKey);
+        if (design == null)
+            return false;
+        for (int y = 0; y < design.materials.length; y++) {
+            for (int z = 0; z < design.materials[y].length; z++) {
+                for (int x = 0; x < design.materials[y][z].length; x++) {
+                    Material material = design.materials[y][z][x];
+                    if (material == null) continue;
+                    Vector current = new Vector(x - design.xInputOffset, y - design.yInputOffset, z - design.zInputOffset);
+                    direction.rotateVector(current);
+                    if (!material.equals(block.getRelative(current.getBlockX(), current.getBlockY(), current.getBlockZ()).getType())) {
+                        return false;
                     }
                 }
-                break;
-            case SOUTH:
-                startingBlock = block.getRelative(xOffset, -yOffset, zOffset);
-                for (int y = 0; y > -this.design.length; y--) {
-                    for (int z = this.design[y].length - 1; z >= 0; z--) {
-                        for (int x = this.design[y][z].length - 1; x >= 0; x--) {
-                            if (this.design[y][z][x] != null
-                                    && !this.design[y][z][x].equals(startingBlock.getRelative(x, y, z).getType()))
-                                return false;
-                        }
-                    }
-                }
-                break;
-            case EAST:
-                startingBlock = block.getRelative(zOffset, -yOffset, -xOffset);
-                for (int y = 0; y > -this.design.length; y--) {
-                    for (int z = this.design[y].length - 1; z >= 0; z--) {
-                        for (int x = 0; x < this.design[y][z].length; x++) {
-                            if (this.design[y][z][x] != null
-                                    && !this.design[y][z][x].equals(startingBlock.getRelative(x, y, z).getType()))
-                                return false;
-                        }
-                    }
-                }
-                break;
-            case WEST:
-                startingBlock = block.getRelative(-zOffset, -yOffset, xOffset);
-                for (int y = 0; y > -this.design.length; y--) {
-                    for (int z = 0; z < this.design[y].length; z++) {
-                        for (int x = this.design[y][z].length - 1; x >= 0; x--) {
-                            if (this.design[y][z][x] != null
-                                    && !this.design[y][z][x].equals(startingBlock.getRelative(x, y, z).getType()))
-                                return false;
-                        }
-                    }
-                }
-                break;
-
+            }
         }
         return true;
     }

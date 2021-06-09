@@ -1,0 +1,10 @@
+prefix: "Some prefix >> "
+
+commands:
+  reload:
+    start: "%prefix% Reloading"
+    finish: "%prefix% Reload Finished"
+  setdesign:
+    not-inside-region: "%prefix% You need to stand on the input block!"
+    no-selection:  "%prefix% You need to create a WorldEdit selection first!"
+    success: "%prefix% Successfully created the design named \"%name%\"!"
