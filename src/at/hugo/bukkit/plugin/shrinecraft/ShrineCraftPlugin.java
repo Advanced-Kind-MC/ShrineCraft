@@ -12,6 +12,7 @@ import co.aikar.commands.PaperCommandManager;
 
 public class ShrineCraftPlugin extends JavaPlugin {
     private NamespacedKey modifiedItemKey;
+    private NamespacedKey tempEntityKey;
 
     private DroppedItemManager droppedItemManager;
     private ShrineManager shrineManager;
@@ -25,6 +26,7 @@ public class ShrineCraftPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         modifiedItemKey = NamespacedKey.fromString("modifieditem", this);
+        tempEntityKey = NamespacedKey.fromString("tempentity", this);
 
         // create manager
         droppedItemManager = new DroppedItemManager(this);
@@ -73,5 +75,9 @@ public class ShrineCraftPlugin extends JavaPlugin {
 
     public NamespacedKey getModifiedItemKey() {
         return modifiedItemKey;
+    }
+
+    public NamespacedKey getPreviewItemKey() {
+        return tempEntityKey;
     }
 }

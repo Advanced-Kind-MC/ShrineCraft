@@ -28,6 +28,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.ItemMergeEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
@@ -48,14 +49,125 @@ public class ShrineManager implements Listener {
     private final ConcurrentHashMap<Location, Shrine> activeShrines = new ConcurrentHashMap<>();
     private final Multimap<Material, ShrineInfo> shrineMap = MultimapBuilder.enumKeys(Material.class).linkedListValues().build();
 
+
+    // item animation variables
+    private int ticksBetweenRefreshes = 10;
+    private double radiansPerFrame = 30D / 20 * ticksBetweenRefreshes;
+    /**
+     * current item tick
+     */
+    private long time = 0;
+
+    /**
+     * maximum distance someone can be from the shrine
+     */
+    private double maxDistanceFromShrine = 15;
+    private double maxDistanceFromShrineSquared = maxDistanceFromShrine * maxDistanceFromShrine;
+    /**
+     * the Vectors of for the particle shrine border animation
+     */
+    private Vector[] particleVectors = new Vector[0];
+    /**
+     * rotation speed for the particle shrine border animation
+     */
+    private double particleRotation = Math.PI / 16;
+
+    private final static ParticleBuilder PARTICLE_BUILDER = new ParticleBuilder(Particle.REDSTONE).offset(0, 0, 0).force(true).color(Color.GREEN, 2).count(1);
+
+
     public ShrineManager(final ShrineCraftPlugin plugin) {
         this.plugin = plugin;
+    }
+
+    /**
+     * loads the data from the config files
+     */
+    public void reload() {
+        // max distance from the shrine a player can move
+        this.maxDistanceFromShrine = plugin.getConfig().getDouble("shrine-max-distance");
+        this.maxDistanceFromShrineSquared = maxDistanceFromShrine * maxDistanceFromShrine;
+
+        // region: item animation
+        // item animation refresh rate
+        this.ticksBetweenRefreshes = plugin.getConfig().getInt("animation.ticks-between-refreshes");
+        // item animation rotation in degrees per second
+        final double degreesPerSecond = plugin.getConfig().getDouble("animation.degrees-per-second");
+
+        // item animation rotation in radians per frame
+        this.radiansPerFrame = (degreesPerSecond / (20D / (this.ticksBetweenRefreshes + 1))) * (Math.PI / 180);
+        // endregion: item animation
+
+        // region: particle shrine border
+
+        // ticks between particle ticking ticks
+        final long particleWaitTicks = plugin.getConfig().getLong("particle-border.ticks-between-refreshes");
+
+        PARTICLE_BUILDER.color(Color.fromRGB(
+                plugin.getConfig().getInt("particle-border.particle-color.red"),
+                plugin.getConfig().getInt("particle-border.particle-color.green"),
+                plugin.getConfig().getInt("particle-border.particle-color.blue")),
+                (float) plugin.getConfig().getDouble("particle-border.particle-size")
+        );
+
+        // circumference
+        final double particleCircumference = 2D * Math.PI * maxDistanceFromShrine;
+        // distance between particles
+        final double particleDistance = plugin.getConfig().getDouble("particle-border.particle-distance");
+
+        // particle count
+        final int particleCount = (int) Math.round(particleCircumference / particleDistance);
+        // distance vector
+        final Vector particleVector = new Vector(1, 0, 0).multiply(maxDistanceFromShrine);
+        // radians between each particle
+        final double particleRotation = (particleCircumference / particleCount) / maxDistanceFromShrine;
+        // rotation speed
+        this.particleRotation = plugin.getConfig().getDouble("particle-border.particle-rotation-distance") / maxDistanceFromShrine;
+
+        // prepare position vectors
+        particleVectors = new Vector[particleCount];
+        for (int i = 0; i < particleCount; i++) {
+            particleVectors[i] = particleVector.clone();
+            particleVector.rotateAroundY(particleRotation);
+        }
+
+        // endregion: particle shrine border
+
+        // region: shrine info loading
+        shrineMap.clear();
+        for (Object shrineObject : plugin.getConfig().getList("shrines")) {
+            ShrineInfo shrineInfo = new ShrineInfo(plugin, ConfigUtils.objectToConfigurationSection(shrineObject));
+            shrineMap.put(shrineInfo.getCraftingBlockMaterial(), shrineInfo);
+        }
+        // reloading shrines
+        activeShrines.values().forEach(Shrine::reload);
+        // endregion: shrine info loading
+
+        // (re)starting tasks
+        if (itemAnimationTask != null)
+            itemAnimationTask.cancel();
+        itemAnimationTask = Bukkit.getScheduler().runTaskTimer(plugin, this::animateItems, 0, this.ticksBetweenRefreshes);
+        if (particleAnimationTask != null)
+            particleAnimationTask.cancel();
+        particleAnimationTask = Bukkit.getScheduler().runTaskTimer(plugin, this::animateParticles, 0, particleWaitTicks);
+    }
+
+    @EventHandler(priority = EventPriority.LOW)
+    public void onInteractShrine(PlayerInteractEvent event) {
+        Player player = event.getPlayer();
+        List<Block> blocks = player.getLineOfSight(null, 5);
+        for (Shrine shrine : activeShrines.values()) {
+            if (shrine.getPlayer().equals(player) && shrine.onTriggerBlock(blocks)) {
+                event.setCancelled(true);
+                return;
+            }
+        }
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onMerge(ItemMergeEvent event) {
         for (Shrine shrine : activeShrines.values()) {
             if (shrine.onItemMerge(event)) {
+                event.setCancelled(true);
                 return;
             }
         }
@@ -75,7 +187,7 @@ public class ShrineManager implements Listener {
             // check if hes further than max distance away from the shrine
             if (event.getTo().distanceSquared(loc) > maxDistanceFromShrineSquared) {
                 iterator.remove();
-                returnItemsToPlayer(shrine.removeItems(), player);
+                returnItemsToPlayer(shrine.disbandShrine(), player);
             }
         }
     }
@@ -88,7 +200,7 @@ public class ShrineManager implements Listener {
             Shrine shrine = iterator.next();
             if (shrine.getPlayer().equals(player)) {
                 iterator.remove();
-                returnItemsToPlayer(shrine.removeItems(), player);
+                returnItemsToPlayer(shrine.disbandShrine(), player);
             }
         }
     }
@@ -118,8 +230,9 @@ public class ShrineManager implements Listener {
             final Shrine shrine = activeShrines.get(location);
             wasShrine = true;
 
+            // check if the shrine is crafting or
             // check if the owner if the shrine is the player who threw it
-            if (!shrine.getPlayer().equals(player)) {
+            if (shrine.isCrafting() || !shrine.getPlayer().equals(player)) {
                 returnItemsToPlayer(items, player);
                 // end of this path
                 return;
@@ -128,14 +241,12 @@ public class ShrineManager implements Listener {
             if (shrine.canAddItem(item) && shrine.isAt(landedOnBlock)) {
                 // this shrine is valid and the item can be added
                 shrine.addAllItems(items);
-                // see if you can now craft an item here
-                tryCraftItem(activeShrines.get(location));
                 // end of this path
                 return;
             } else {
                 // disband this shrine
                 activeShrines.remove(location);
-                items.addAll(shrine.removeItems());
+                items.addAll(shrine.disbandShrine());
                 // continue with new shrine creation
             }
         }
@@ -146,11 +257,9 @@ public class ShrineManager implements Listener {
             // check if the shrine has a similar recipe and is at this location
             if (shrineInfo.hasSimilarRecipe(items) && shrineInfo.isAt(landedOnBlock)) {
                 // create the shrine
-                final Shrine shrine = new Shrine(plugin, player, shrineInfo, location, this::removeShrine);
+                final Shrine shrine = new Shrine(plugin, player, shrineInfo, location, this::removeShrine, this::finishedCrafting);
                 shrine.addAllItems(items);
                 activeShrines.put(location, shrine);
-                // try to craft an item
-                tryCraftItem(activeShrines.get(location));
                 return;
             }
         }
@@ -162,7 +271,7 @@ public class ShrineManager implements Listener {
 
     private void removeShrine(final @NotNull Shrine shrine) {
         activeShrines.remove(shrine.getLocation());
-        returnItemsToPlayer(shrine.removeItems(), shrine.getPlayer());
+        returnItemsToPlayer(shrine.disbandShrine(), shrine.getPlayer());
     }
 
     private void returnItemsToPlayer(List<Item> items, Player player) {
@@ -182,17 +291,11 @@ public class ShrineManager implements Listener {
         }
     }
 
-    private void tryCraftItem(final Shrine shrine) {
-        if (shrine.canCraftItem()) {
-            shrine.startCrafting(this::finishedCrafting);
-        }
-    }
-
     private void finishedCrafting(final Shrine shrine, final ItemStack craftedItem) {
         activeShrines.remove(shrine.getLocation());
-        shrine.removeItems().forEach(Item::remove);
+        shrine.disbandShrine().forEach(Item::remove);
         Bukkit.getScheduler().runTask(plugin, () -> {
-            Item item = createItemEntity(shrine.getItemCenter(), craftedItem);
+            Item item = createItemEntity(shrine.getItemOutputLocation(), craftedItem);
             item.setPickupDelay(5);
         });
     }
@@ -204,56 +307,6 @@ public class ShrineManager implements Listener {
         item.setVelocity(new Vector());
         return item;
     }
-
-
-    public void reload() {
-        this.ticksBetweenRefreshes = plugin.getConfig().getInt("animation.ticks-between-refreshes");
-        double degreesPerSecond = plugin.getConfig().getDouble("animation.degrees-per-second");
-
-        this.radiansPerFrame = (degreesPerSecond / (20D / (this.ticksBetweenRefreshes + 1))) * (Math.PI / 180);
-
-        final double particleCircumference = 2D * Math.PI * maxDistanceFromShrine;
-        final double particleDistance = 6;
-
-        final int particleCount = (int) Math.round(particleCircumference / particleDistance);
-        final Vector particleVector = new Vector(1, 0, 0).multiply(maxDistanceFromShrine);
-        final double particleRotation = (particleCircumference / particleCount) / maxDistanceFromShrine;
-        this.particleRotation = 1D / maxDistanceFromShrine;
-
-
-        particleVectors = new Vector[particleCount];
-        for (int i = 0; i < particleCount; i++) {
-            particleVectors[i] = particleVector.clone();
-            particleVector.rotateAroundY(particleRotation);
-        }
-
-        shrineMap.clear();
-        for (Object shrineObject : plugin.getConfig().getList("shrines")) {
-            ShrineInfo shrineInfo = new ShrineInfo(plugin, ConfigUtils.objectToConfigurationSection(shrineObject));
-            shrineMap.put(shrineInfo.getCraftingBlockMaterial(), shrineInfo);
-        }
-
-        if (itemAnimationTask != null)
-            itemAnimationTask.cancel();
-        itemAnimationTask = Bukkit.getScheduler().runTaskTimer(plugin, this::animateItems, 0, this.ticksBetweenRefreshes);
-        if (particleAnimationTask != null)
-            particleAnimationTask.cancel();
-        particleAnimationTask = Bukkit.getScheduler().runTaskTimer(plugin, this::animateParticles, 0, 4);
-
-    }
-
-    private int ticksBetweenRefreshes = 10;
-    private double radiansPerFrame = 30D / 20 * ticksBetweenRefreshes;
-
-    private long time = 0;
-
-    private final int maxDistanceFromShrine = 15;
-    private final int maxDistanceFromShrineSquared = maxDistanceFromShrine * maxDistanceFromShrine;
-    private Vector[] particleVectors = new Vector[0];
-    private double particleRotation = Math.PI / 16;
-
-    private final static ParticleBuilder PARTICLE_BUILDER = new ParticleBuilder(Particle.REDSTONE).offset(0, 0, 0).force(true).color(Color.GREEN, 2).count(1);
-
 
     private void animateParticles() {
         for (Shrine shrine : activeShrines.values()) {

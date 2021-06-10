@@ -1,21 +1,48 @@
+# timeout in seconds when a shrine gets disbanded because of inactivity
 shrine-timeout: 60
+# max distance a player can go away from their shrine before it gets disbanded
 shrine-max-distance: 15
+
+# shrine particle border settings
+particle-border:
+  # distance in blocks between each particle
+  particle-distance: 6
+  # rotation distance in blocks per particle tick
+  particle-rotation-distance: 1
+  # ticks to wait between the ticking of particles
+  ticks-between-refreshes: 4
+  # size of the particle
+  particle-size: 1.5
+  # particle color in RGB (0-255)
+  particle-color:
+    red: 0
+    green: 255
+    blue: 0
+
+
 animation:
-  ticks-between-refreshes: 5
+  ticks-between-refreshes: 4
   degrees-per-second: 45
 
 shrines:
-- design: example
-  recipes:
-  - in:
-    - STICK
-    - material: COBBLESTONE
-      amount: 64
-    out:
-      material: STONE
-      name: poop
-      lore:
-        - a
-        - poop
-        - sir
-      customModel: 11
+  # design of the shrine defined in "designs.yml"
+  - design: example
+    # recipes which can be crafted in this shrine
+    recipes:
+      # input items
+      - in:
+          # a singular stick
+          - STICK
+          # 64 cobblestone
+          - material: COBBLESTONE
+            amount: 64
+        # output item
+        out:
+          # a stone with the name "poop" and a lore and custom model 11
+          material: STONE
+          name: poop
+          lore:
+            - a
+            - poop
+            - sir
+          customModel: 11
