@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 import at.hugo.bukkit.plugin.shrinecraft.animation.idle.CircularIdleAnimation;
 import at.hugo.bukkit.plugin.shrinecraft.animation.idle.IIdleAnimation;
@@ -11,11 +12,13 @@ import at.hugo.bukkit.plugin.shrinecraft.animation.merge.IMergeAnimation;
 import at.hugo.bukkit.plugin.shrinecraft.animation.merge.SimpleMergeAnimation;
 import at.hugo.bukkit.plugin.shrinecraft.manager.DesignManager;
 import com.advancedkind.plugin.utils.utils.ConfigUtils;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Item;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.BlockVector;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 
@@ -71,8 +74,13 @@ public class ShrineInfo {
         return mergeAnimation;
     }
 
-    public Material getCraftingBlockMaterial() {
-        return plugin.getDesignManager().getDesign(designKey).getInputBlockMaterial();
+    public Set<Material> getCraftingBlockMaterials() {
+        DesignManager.Design design = plugin.getDesignManager().getDesign(designKey);
+        if (design != null) {
+            return design.getInputBlockMaterials();
+        } else {
+            return EnumSet.noneOf(Material.class);
+        }
     }
 
     public ItemStack tryCraft(final Collection<Item> items) {
@@ -94,26 +102,43 @@ public class ShrineInfo {
         return false;
     }
 
-    public boolean isAt(final Block block) {
-        if (!getCraftingBlockMaterial().equals(block.getType()))
-            return false;
+    public ShrinePosition getShrinePositionAt(final Block block) {
+        if (!getCraftingBlockMaterials().contains(block.getType()))
+            return null;
+        DesignManager.Design design = plugin.getDesignManager().getDesign(designKey);
+
+        if (design == null)
+            return null;
+
         for (var direction : directions) {
-            if (isAt(block, direction))
-                return true;
+            BlockVector offset = getOffset(block, direction, design);
+            if (offset != null) {
+                Location origin = block.getLocation().clone().subtract(direction.rotateVector(offset.clone()));
+                return new ShrinePosition(this, direction, origin);
+            }
         }
-        return false;
+        return null;
     }
 
-    private boolean isAt(final Block block, DesignManager.Design.Direction direction) {
-        DesignManager.Design design = plugin.getDesignManager().getDesign(designKey);
-        if (design == null)
-            return false;
+
+    private BlockVector getOffset(final Block block, DesignManager.Design.Direction direction, DesignManager.Design design) {
+        BlockVector[] offsets = design.inputOffsets;
+        for (BlockVector offset : offsets) {
+            if (isAt(block, direction, design, offset)) {
+                return offset;
+            }
+        }
+
+        return null;
+    }
+
+    public boolean isAt(Block block, DesignManager.Design.Direction direction, DesignManager.Design design, BlockVector offset) {
         for (int y = 0; y < design.materials.length; y++) {
             for (int z = 0; z < design.materials[y].length; z++) {
                 for (int x = 0; x < design.materials[y][z].length; x++) {
                     Material material = design.materials[y][z][x];
                     if (material == null) continue;
-                    Vector current = new Vector(x - design.xInputOffset, y - design.yInputOffset, z - design.zInputOffset);
+                    Vector current = new Vector(x, y, z).subtract(offset);
                     direction.rotateVector(current);
                     if (!material.equals(block.getRelative(current.getBlockX(), current.getBlockY(), current.getBlockZ()).getType())) {
                         return false;
@@ -122,5 +147,77 @@ public class ShrineInfo {
             }
         }
         return true;
+    }
+
+    public BlockVector[] getInputOffsets() {
+        DesignManager.Design design = plugin.getDesignManager().getDesign(designKey);
+        if (design != null) {
+            return design.inputOffsets;
+        } else {
+            return new BlockVector[]{new BlockVector(0, 0, 0)};
+        }
+
+    }
+
+    public boolean isAt(Location center, DesignManager.Design.Direction direction, BlockVector offset) {
+        DesignManager.Design design = plugin.getDesignManager().getDesign(designKey);
+        if (design == null) {
+            return false;
+        }
+        return isAt(center.getBlock(), direction, design, offset);
+    }
+
+    public static class ShrineInputLocation {
+        private final @NotNull Location location;
+        private final @NotNull DesignManager.Design.Direction direction;
+        private final @NotNull BlockVector offset;
+        private final @NotNull ShrineInfo shrineInfo;
+
+        public ShrineInputLocation(@NotNull Location location, @NotNull DesignManager.Design.Direction direction, @NotNull BlockVector offset, @NotNull ShrineInfo shrineInfo) {
+            this.location = location;
+            this.direction = direction;
+            this.offset = offset;
+            this.shrineInfo = shrineInfo;
+        }
+
+        public Location getLocation() {
+            return location;
+        }
+
+        public DesignManager.Design.Direction getDirection() {
+            return direction;
+        }
+
+        public BlockVector getOffset() {
+            return offset;
+        }
+
+        public ShrineInfo getShrineInfo() {
+            return shrineInfo;
+        }
+    }
+
+    public static class ShrinePosition {
+        private final @NotNull ShrineInfo shrineInfo;
+        private final @NotNull DesignManager.Design.Direction direction;
+        private final @NotNull Location origin;
+
+        public ShrinePosition(@NotNull ShrineInfo shrineInfo, @NotNull DesignManager.Design.Direction direction, @NotNull Location origin) {
+            this.shrineInfo = shrineInfo;
+            this.direction = direction;
+            this.origin = origin;
+        }
+
+        public ShrineInfo getShrineInfo() {
+            return shrineInfo;
+        }
+
+        public DesignManager.Design.Direction getDirection() {
+            return direction;
+        }
+
+        public Location getOrigin() {
+            return origin;
+        }
     }
 }

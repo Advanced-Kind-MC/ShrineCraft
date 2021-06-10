@@ -1,5 +1,6 @@
 package at.hugo.bukkit.plugin.shrinecraft;
 
+import at.hugo.bukkit.plugin.shrinecraft.manager.DesignManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -12,13 +13,16 @@ import org.bukkit.event.entity.ItemMergeEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.BlockVector;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -26,6 +30,8 @@ public class Shrine {
     private final static @NotNull ItemStack NO_PREVIEW = new ItemStack(Material.BARRIER);
 
     private final @NotNull LinkedHashSet<Item> items = new LinkedHashSet<>();
+
+    private final @NotNull HashSet<Location> inputLocations = new HashSet<>();
 
     private final @NotNull ShrineCraftPlugin plugin;
 
@@ -35,6 +41,9 @@ public class Shrine {
     private final @NotNull Location center;
     private final @NotNull Location itemRotationCenter;
     private final @NotNull Location itemOutputLocation;
+
+    private final @NotNull DesignManager.Design.Direction direction;
+    private final @NotNull BlockVector offset;
 
     private final @NotNull Consumer<Shrine> onTimeout;
     private final @NotNull BiConsumer<Shrine, ItemStack> finishedCraftingConsumer;
@@ -48,13 +57,18 @@ public class Shrine {
     private BukkitTask timeoutTask = null;
 
 
-    public Shrine(final @NotNull ShrineCraftPlugin plugin, final @NotNull Player owner, final @NotNull ShrineInfo shrineInfo, final @NotNull Location center,
+    public Shrine(final @NotNull ShrineCraftPlugin plugin, final @NotNull Player owner, final @NotNull ShrineInfo.ShrinePosition shrinePositionData,
                   final @NotNull Consumer<Shrine> onTimeout, final @NotNull BiConsumer<Shrine, ItemStack> finishedCrafting) {
         this.plugin = plugin;
         this.player = owner;
-        this.shrineInfo = shrineInfo;
+        this.shrineInfo = shrinePositionData.getShrineInfo();
+        this.direction = shrinePositionData.getDirection();
+        this.offset = shrineInfo.getInputOffsets()[0];
 
-        this.center = center;
+        this.center = shrinePositionData.getOrigin().clone().add(shrinePositionData.getDirection().rotateVector(offset.clone())).add(0.5, 0.5, 0.5);
+        for (BlockVector inputOffset : shrineInfo.getInputOffsets()) {
+            inputLocations.add(shrinePositionData.getOrigin().clone().add(shrinePositionData.getDirection().rotateVector(inputOffset.clone())));
+        }
         this.itemRotationCenter = center.clone().add(0, 3, 0);
         this.itemOutputLocation = center.clone().add(0, 1.5, 0);
         this.interactBlock = itemOutputLocation.getBlock();
@@ -148,8 +162,8 @@ public class Shrine {
         item.setTicksLived(1);
     }
 
-    public boolean isAt(Block block) {
-        return shrineInfo.isAt(block);
+    public boolean isStillComplete() {
+        return shrineInfo.isAt(center, direction, offset);
     }
 
 
@@ -182,6 +196,10 @@ public class Shrine {
 
     public Location getLocation() {
         return center;
+    }
+
+    public Set<Location> getAllInputLocations() {
+        return (Set<Location>) inputLocations.clone();
     }
 
     public @NotNull Location getItemRotationCenter() {

@@ -4,13 +4,17 @@ import at.hugo.bukkit.plugin.shrinecraft.ShrineCraftPlugin;
 import at.hugo.bukkit.plugin.shrinecraft.Utils;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.util.BlockVector;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class DesignManager {
     public static class Design {
@@ -29,27 +33,28 @@ public class DesignManager {
         }
 
         public final Material[][][] materials;
-        public final int xInputOffset, yInputOffset, zInputOffset;
+        public final @NotNull BlockVector[] inputOffsets;
 
-        private Design(@NotNull Material[][][] materials, int xInputOffset, int yInputOffset, int zInputOffset) {
+        private Design(@NotNull Material[][][] materials, final @NotNull BlockVector[] inputOffsets) {
             this.materials = materials;
-            this.xInputOffset = xInputOffset;
-            this.yInputOffset = yInputOffset;
-            this.zInputOffset = zInputOffset;
+            this.inputOffsets = inputOffsets;
         }
 
-        public Material getInputBlockMaterial() {
-            return materials[yInputOffset][zInputOffset][xInputOffset];
+        public Set<Material> getInputBlockMaterials() {
+            EnumSet<Material> result = EnumSet.noneOf(Material.class);
+            for (BlockVector inputOffset : inputOffsets) {
+                Material material = materials[inputOffset.getBlockY()][inputOffset.getBlockZ()][inputOffset.getBlockX()];
+                if (material != null) {
+                    result.add(material);
+                }
+            }
+            return result;
         }
 
         private Map<String, Object> serialize() {
             Map<String, Object> result = new HashMap<>();
             result.put("materials", Utils.convertMaterialsArrayToStringList(materials));
-            Map<String, Object> inputOffset = new HashMap<>();
-            inputOffset.put("x", xInputOffset);
-            inputOffset.put("z", zInputOffset);
-            inputOffset.put("y", yInputOffset);
-            result.put("input-offset", inputOffset);
+            result.put("input-offsets", inputOffsets);
             return result;
         }
     }
@@ -67,15 +72,14 @@ public class DesignManager {
             final ConfigurationSection designConfig = plugin.getDesignConfig().getConfigurationSection(designKey);
             @SuppressWarnings("unchecked") final List<List<List<String>>> materialList = (List<List<List<String>>>) designConfig.getList("materials");
             final Material[][][] materials = Utils.convertStringListToMaterialArray(materialList);
-            final int x = designConfig.getInt("input-offset.x");
-            final int y = designConfig.getInt("input-offset.y");
-            final int z = designConfig.getInt("input-offset.z");
-            designMap.put(designKey, new Design(materials, x, y, z));
+            final List<BlockVector> inputOffsetsList = (List<BlockVector>) designConfig.getList("input-offsets");
+            final BlockVector[] inputOffsets = inputOffsetsList.toArray(new BlockVector[inputOffsetsList.size()]);
+            designMap.put(designKey, new Design(materials, inputOffsets));
         }
     }
 
-    public void setDesign(String designKey, @NotNull Material[][][] materials, int xInputOffset, int yInputOffset, int zInputOffset) {
-        Design design = new Design(materials, xInputOffset, yInputOffset, zInputOffset);
+    public void setDesign(String designKey, @NotNull Material[][][] materials, BlockVector[] inputOffsets) {
+        Design design = new Design(materials, inputOffsets);
         this.designMap.put(designKey, design);
         plugin.getDesignConfig().set(designKey, design.serialize());
         plugin.getDesignConfig().save();

@@ -19,15 +19,23 @@ import com.sk89q.worldedit.world.World;
 import net.kyori.adventure.text.TextReplacementConfig;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.util.BlockVector;
 
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @CommandAlias("shrinecraft")
 @CommandPermission("shrinecraft.command")
 public class ShrineCraftCommand extends BaseCommand {
+    private final EnumSet<BlockFace> NEIGHBORING_FACES = EnumSet.of(BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST, BlockFace.UP);
+
     private final ShrineCraftPlugin plugin;
 
     public ShrineCraftCommand(final ShrineCraftPlugin plugin) {
@@ -89,17 +97,32 @@ public class ShrineCraftCommand extends BaseCommand {
             }
             design.add(zList);
         }
+        final Block startBlock;
         if (sender.isInLava() || sender.isInLava()) {
-            plugin.getDesignManager().setDesign(name, Utils.convertStringListToMaterialArray(design),
-                    sender.getLocation().getBlockX() - minLoc.getBlockX(),
-                    sender.getLocation().getBlockY() - minLoc.getBlockY(),
-                    sender.getLocation().getBlockZ() - minLoc.getBlockZ());
+            startBlock = sender.getLocation().getBlock();
         } else {
-            plugin.getDesignManager().setDesign(name, Utils.convertStringListToMaterialArray(design),
-                    sender.getLocation().getBlockX() - minLoc.getBlockX(),
-                    sender.getLocation().getBlockY() - minLoc.getBlockY() - 1,
-                    sender.getLocation().getBlockZ() - minLoc.getBlockZ());
+            startBlock = sender.getLocation().clone().subtract(0, 1, 0).getBlock();
         }
+        final Material startMaterial = startBlock.getType();
+        final HashSet<Block> knownBlocks = new HashSet<>();
+        final LinkedList<Block> queuedBlocks = new LinkedList<>();
+        final LinkedList<Block> foundBlocks = new LinkedList<>();
+        queuedBlocks.add(startBlock);
+        knownBlocks.add(startBlock);
+        while (!queuedBlocks.isEmpty()) {
+            Block block = queuedBlocks.poll();
+            foundBlocks.add(block);
+            for (BlockFace face : NEIGHBORING_FACES) {
+                Block neighbor = block.getRelative(face);
+                if (!knownBlocks.contains(neighbor) && startMaterial.equals(neighbor.getType()) && cuboidRegion.contains(BlockVector3.at(neighbor.getX(), neighbor.getY(), neighbor.getZ()))) {
+                    queuedBlocks.add(neighbor);
+                }
+                knownBlocks.add(neighbor);
+            }
+        }
+        BlockVector[] inputOffsets = foundBlocks.stream().map(block -> new BlockVector(block.getX() - minLoc.getBlockX(), block.getY() - minLoc.getBlockY(), block.getZ() - minLoc.getBlockZ())).toArray(BlockVector[]::new);
+
+        plugin.getDesignManager().setDesign(name, Utils.convertStringListToMaterialArray(design), inputOffsets);
         sender.sendMessage(plugin.getMessagesConfig().getComponent("commands.setdesign.success").replaceText(TextReplacementConfig.builder().match("%name%").replacement(name).build()));
     }
 }

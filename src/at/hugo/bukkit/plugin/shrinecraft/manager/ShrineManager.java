@@ -1,9 +1,13 @@
 package at.hugo.bukkit.plugin.shrinecraft.manager;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import at.hugo.bukkit.plugin.shrinecraft.Shrine;
 import at.hugo.bukkit.plugin.shrinecraft.ShrineCraftPlugin;
@@ -13,7 +17,6 @@ import com.destroystokyo.paper.ParticleBuilder;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
 
-import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
@@ -27,12 +30,17 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.ItemMergeEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.BlockVector;
 import org.bukkit.util.Vector;
 
 import at.hugo.bukkit.plugin.shrinecraft.event.ItemLandEvent;
@@ -46,7 +54,8 @@ public class ShrineManager implements Listener {
     private BukkitTask itemAnimationTask = null;
     private BukkitTask particleAnimationTask = null;
 
-    private final ConcurrentHashMap<Location, Shrine> activeShrines = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Location, Shrine> shrineLocations = new ConcurrentHashMap<>();
+    private final Set<Shrine> activeShrines = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Multimap<Material, ShrineInfo> shrineMap = MultimapBuilder.enumKeys(Material.class).linkedListValues().build();
 
 
@@ -136,10 +145,10 @@ public class ShrineManager implements Listener {
         shrineMap.clear();
         for (Object shrineObject : plugin.getConfig().getList("shrines")) {
             ShrineInfo shrineInfo = new ShrineInfo(plugin, ConfigUtils.objectToConfigurationSection(shrineObject));
-            shrineMap.put(shrineInfo.getCraftingBlockMaterial(), shrineInfo);
+            shrineInfo.getCraftingBlockMaterials().forEach(material -> shrineMap.put(material, shrineInfo));
         }
         // reloading shrines
-        activeShrines.values().forEach(Shrine::reload);
+        activeShrines.forEach(Shrine::reload);
         // endregion: shrine info loading
 
         // (re)starting tasks
@@ -151,21 +160,39 @@ public class ShrineManager implements Listener {
         particleAnimationTask = Bukkit.getScheduler().runTaskTimer(plugin, this::animateParticles, 0, particleWaitTicks);
     }
 
+    private final @NotNull HashMap<Player, BukkitTask> droppedItemPlayers = new HashMap<>();
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onItemDrop(PlayerDropItemEvent event) {
+        BukkitTask task = droppedItemPlayers.put(event.getPlayer(), Bukkit.getScheduler().runTaskLater(plugin, () -> droppedItemPlayers.remove(event.getPlayer()), 1));
+        if (task != null) task.cancel();
+    }
+
     @EventHandler(priority = EventPriority.LOW)
     public void onInteractShrine(PlayerInteractEvent event) {
-        Player player = event.getPlayer();
-        List<Block> blocks = player.getLineOfSight(null, 5);
-        for (Shrine shrine : activeShrines.values()) {
-            if (shrine.getPlayer().equals(player) && shrine.onTriggerBlock(blocks)) {
-                event.setCancelled(true);
-                return;
+        final Player player = event.getPlayer();
+
+        if (event.getAction().equals(Action.LEFT_CLICK_AIR) && droppedItemPlayers.containsKey(player)) {
+            return;
+        }
+
+        List<Block> blocks = null;
+        for (Shrine shrine : activeShrines) {
+            if (shrine.getPlayer().equals(player)) {
+                if (blocks == null) {
+                    blocks = player.getLineOfSight(null, 5);
+                }
+                if (shrine.onTriggerBlock(blocks)) {
+                    event.setCancelled(true);
+                    return;
+                }
             }
         }
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onMerge(ItemMergeEvent event) {
-        for (Shrine shrine : activeShrines.values()) {
+        for (Shrine shrine : activeShrines) {
             if (shrine.onItemMerge(event)) {
                 event.setCancelled(true);
                 return;
@@ -176,7 +203,13 @@ public class ShrineManager implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerMove(PlayerMoveEvent event) {
         final Player player = event.getPlayer();
-        Iterator<Shrine> iterator = activeShrines.values().iterator();
+
+        if(!event.getFrom().getWorld().equals(event.getTo().getWorld())){
+            activeShrines.stream().filter(shrine -> shrine.getPlayer().equals(player)).forEach(this::removeShrine);
+            return;
+        }
+
+        Iterator<Shrine> iterator = activeShrines.iterator();
         while (iterator.hasNext()) {
             final Shrine shrine = iterator.next();
             // check if player owns the shrine
@@ -187,15 +220,28 @@ public class ShrineManager implements Listener {
             // check if hes further than max distance away from the shrine
             if (event.getTo().distanceSquared(loc) > maxDistanceFromShrineSquared) {
                 iterator.remove();
+                shrine.getAllInputLocations().forEach(shrineLocations::remove);
                 returnItemsToPlayer(shrine.disbandShrine(), player);
             }
         }
     }
 
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        final Player player = event.getEntity();
+        activeShrines.stream().filter(shrine -> shrine.getPlayer().equals(player)).forEach(shrine -> {
+            List<Item> items = shrine.disbandShrine();
+            items.forEach(Item::remove);
+            event.getDrops().addAll(items.stream().map(Item::getItemStack).collect(Collectors.toList()));
+            activeShrines.remove(shrine);
+            shrine.getAllInputLocations().forEach(shrineLocations::remove);
+        });
+    }
+
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerQuit(PlayerQuitEvent event) {
         final Player player = event.getPlayer();
-        Iterator<Shrine> iterator = activeShrines.values().iterator();
+        Iterator<Shrine> iterator = activeShrines.iterator();
         while (iterator.hasNext()) {
             Shrine shrine = iterator.next();
             if (shrine.getPlayer().equals(player)) {
@@ -211,6 +257,7 @@ public class ShrineManager implements Listener {
         // if the player isn't online anymore ignore it
         if (player == null)
             return;
+        plugin.getLogger().info("item landed that was thrown by " + player.getName());
 
         final Item item = event.getItem();
 
@@ -218,16 +265,18 @@ public class ShrineManager implements Listener {
         items.add(item);
 
         final Block landedOnBlock = event.getLandedOBlock();
-        final Location location = landedOnBlock.getLocation().clone().add(0.5, 0.5, 0.5);
+        final Location location = landedOnBlock.getLocation();
 
         // check if the landed on block is even valid for shrines
         if (!shrineMap.containsKey(landedOnBlock.getType()))
             return;
+        plugin.getLogger().info("item landed on possible shrine block");
 
         boolean wasShrine = false;
         // is already a shrine here?
-        if (activeShrines.containsKey(location)) {
-            final Shrine shrine = activeShrines.get(location);
+        if (shrineLocations.containsKey(location)) {
+            plugin.getLogger().info("found old shrine");
+            final Shrine shrine = shrineLocations.get(location);
             wasShrine = true;
 
             // check if the shrine is crafting or
@@ -238,14 +287,15 @@ public class ShrineManager implements Listener {
                 return;
             }
             // can the item be added to the shrine and is the shrine valid?
-            if (shrine.canAddItem(item) && shrine.isAt(landedOnBlock)) {
+            if (shrine.canAddItem(item) && shrine.isStillComplete()) {
                 // this shrine is valid and the item can be added
                 shrine.addAllItems(items);
                 // end of this path
                 return;
             } else {
                 // disband this shrine
-                activeShrines.remove(location);
+                activeShrines.remove(shrine);
+                shrine.getAllInputLocations().forEach(shrineLocations::remove);
                 items.addAll(shrine.disbandShrine());
                 // continue with new shrine creation
             }
@@ -255,12 +305,17 @@ public class ShrineManager implements Listener {
         // go through all possible shrines
         for (ShrineInfo shrineInfo : shrineMap.get(landedOnBlock.getType())) {
             // check if the shrine has a similar recipe and is at this location
-            if (shrineInfo.hasSimilarRecipe(items) && shrineInfo.isAt(landedOnBlock)) {
-                // create the shrine
-                final Shrine shrine = new Shrine(plugin, player, shrineInfo, location, this::removeShrine, this::finishedCrafting);
-                shrine.addAllItems(items);
-                activeShrines.put(location, shrine);
-                return;
+            if (shrineInfo.hasSimilarRecipe(items)) {
+                ShrineInfo.ShrinePosition shrinePosition = shrineInfo.getShrinePositionAt(landedOnBlock);
+                if (shrinePosition != null) {
+                    plugin.getLogger().info("creating new shrine");
+                    // create the shrine
+                    final Shrine shrine = new Shrine(plugin, player, shrinePosition, this::removeShrine, this::finishedCrafting);
+                    shrine.addAllItems(items);
+                    activeShrines.add(shrine);
+                    shrine.getAllInputLocations().forEach(inputLocation -> shrineLocations.put(inputLocation, shrine));
+                    return;
+                }
             }
         }
 
@@ -270,7 +325,8 @@ public class ShrineManager implements Listener {
     }
 
     private void removeShrine(final @NotNull Shrine shrine) {
-        activeShrines.remove(shrine.getLocation());
+        activeShrines.remove(shrine);
+        shrine.getAllInputLocations().forEach(shrineLocations::remove);
         returnItemsToPlayer(shrine.disbandShrine(), shrine.getPlayer());
     }
 
@@ -292,7 +348,8 @@ public class ShrineManager implements Listener {
     }
 
     private void finishedCrafting(final Shrine shrine, final ItemStack craftedItem) {
-        activeShrines.remove(shrine.getLocation());
+        activeShrines.remove(shrine);
+        shrine.getAllInputLocations().forEach(shrineLocations::remove);
         shrine.disbandShrine().forEach(Item::remove);
         Bukkit.getScheduler().runTask(plugin, () -> {
             Item item = createItemEntity(shrine.getItemOutputLocation(), craftedItem);
@@ -309,7 +366,7 @@ public class ShrineManager implements Listener {
     }
 
     private void animateParticles() {
-        for (Shrine shrine : activeShrines.values()) {
+        for (Shrine shrine : activeShrines) {
             final Location particleCenter = shrine.getLocation().clone().add(0, 1.5, 0);
             PARTICLE_BUILDER.receivers(shrine.getPlayer());
             for (Vector particleVector : particleVectors) {
@@ -323,7 +380,7 @@ public class ShrineManager implements Listener {
     }
 
     private void animateItems() {
-        for (Shrine shrine : activeShrines.values()) {
+        for (Shrine shrine : activeShrines) {
             shrine.animate(time, radiansPerFrame, ticksBetweenRefreshes + 1);
         }
         ++time;
