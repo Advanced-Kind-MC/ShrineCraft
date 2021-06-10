@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.advancedkind.plugin.utils.utils.ConfigUtils;
+import com.jojodmo.customitems.api.CustomItemsAPI;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainComponentSerializer;
 import org.bukkit.Bukkit;
@@ -15,9 +16,9 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Item;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.java.JavaPlugin;
 
 public class Recipe {
-
     private static class RecipeItem {
         final int amount;
         final Material material;
@@ -114,6 +115,21 @@ public class Recipe {
         }
 
         final ConfigurationSection outConfig = ConfigUtils.objectToConfigurationSection(recipeConfig.get("out"));
+        if (outConfig.isString("CustomItems-item")) {
+            final String customItemsItemName = outConfig.getString("CustomItems-item");
+            if (!Bukkit.getPluginManager().isPluginEnabled("CustomItems")) {
+                JavaPlugin.getPlugin(ShrineCraftPlugin.class).getLogger().warning("CustomItems not enabled or installed!");
+            } else {
+                ItemStack customItemItem = CustomItemsAPI.getCustomItem(customItemsItemName);
+                if (customItemItem == null) {
+                    JavaPlugin.getPlugin(ShrineCraftPlugin.class).getLogger().warning(String.format("Unknown CustomItems item \"%s\"!", customItemsItemName));
+                } else {
+                    result = customItemItem;
+                    return;
+                }
+            }
+        }
+
         result = new ItemStack(ConfigUtils.getMaterial(outConfig, "material"));
         if (outConfig.isInt("amount"))
             result.setAmount(outConfig.getInt("amount"));
@@ -126,10 +142,6 @@ public class Recipe {
         if (outConfig.isInt("customModel"))
             meta.setCustomModelData(outConfig.getInt("customModel"));
         result.setItemMeta(meta);
-
-        for (RecipeItem item : recipeItems) {
-            Bukkit.getLogger().info(item.toString());
-        }
     }
 
     public ItemStack isFulfilledBy(final Collection<Item> items) {

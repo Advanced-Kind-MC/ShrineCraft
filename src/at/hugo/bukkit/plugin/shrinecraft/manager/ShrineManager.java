@@ -39,7 +39,7 @@ import at.hugo.bukkit.plugin.shrinecraft.event.ItemLandEvent;
 import org.jetbrains.annotations.NotNull;
 
 public class ShrineManager implements Listener {
-    private static final Sound PICKUP_SOUND = Sound.sound(Key.key(Key.MINECRAFT_NAMESPACE, "entity.item.pickup"), Sound.Source.PLAYER, .25f, 1);
+    private static final Sound PICKUP_SOUND = Sound.sound(org.bukkit.Sound.ENTITY_ITEM_PICKUP, Sound.Source.PLAYER, .25f, 1);
 
     private final ShrineCraftPlugin plugin;
 

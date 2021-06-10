@@ -12,6 +12,7 @@ prefix: ${project.shortName}
 
 softdepend:
   - WorldEdit
+  - CustomItems
 
 permissions:
   shrinecraft.command:

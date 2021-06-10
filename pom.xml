@@ -4,7 +4,7 @@
 
     <groupId>at.hugo.bukkit.plugin</groupId>
     <artifactId>shrinecraft</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <name>ShrineCraft</name>
     <description>A plugin that allows you to craft items at Shrines</description>
 
@@ -71,8 +71,6 @@
                                     </excludes>
                                 </filter>
                             </filters>
-                            <dependencyReducedPomLocation>${project.build.directory}/dependency-reduced-pom.xml
-                            </dependencyReducedPomLocation>
                             <relocations>
                                 <relocation>
                                     <pattern>co.aikar.commands</pattern>
@@ -137,6 +135,14 @@
             <version>7.2.4</version>
             <scope>provided</scope>
         </dependency>
+        <!-- CustomItems -->
+        <dependency>
+            <groupId>com.github.jojodmo</groupId>
+            <artifactId>CustomItems</artifactId>
+            <version>3.8.31</version>
+            <scope>system</scope>
+            <systemPath>${basedir}/dependencies/CustomItemsAPI_PLACEHOLDER.jar</systemPath>
+        </dependency>
 
         <!-- Commands -->
         <dependency>
@@ -152,5 +158,6 @@
             <version>[1,2)</version>
             <scope>compile</scope>
         </dependency>
+
     </dependencies>
 </project>
