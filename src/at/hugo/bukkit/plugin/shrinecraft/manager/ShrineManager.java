@@ -260,7 +260,7 @@ public class ShrineManager implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerQuit(PlayerQuitEvent event) {
         final Player player = event.getPlayer();
-        playerItems.entrySet().stream().filter(entry-> entry.getValue().equals(player)).map(Map.Entry::getKey).forEach(playerItems::remove);
+        playerItems.entrySet().stream().filter(entry -> entry.getValue().equals(player)).map(Map.Entry::getKey).forEach(playerItems::remove);
         Iterator<Shrine> iterator = activeShrines.iterator();
         while (iterator.hasNext()) {
             Shrine shrine = iterator.next();
@@ -331,6 +331,11 @@ public class ShrineManager implements Listener {
                     activeShrines.add(shrine);
                     shrine.getAllInputLocations().forEach(inputLocation -> shrineLocations.put(inputLocation, shrine));
                     return;
+                }
+            } else if (!wasShrine && shrineInfo.wouldAcceptAnyOf(items)) {
+                ShrineInfo.ShrinePosition shrinePosition = shrineInfo.getShrinePositionAt(landedOnBlock);
+                if (shrinePosition != null) {
+                    wasShrine = true;
                 }
             }
         }
@@ -414,7 +419,7 @@ public class ShrineManager implements Listener {
             if (!item.getWorld().equals(player.getWorld())) {
                 item.teleportAsync(player.getLocation());
             } else {
-                Vector path = player.getLocation().toVector().add(new Vector(0,1,0)).subtract(item.getLocation().toVector());
+                Vector path = player.getLocation().toVector().add(new Vector(0, 1, 0)).subtract(item.getLocation().toVector());
                 if (path.lengthSquared() > maxSpeed) {
                     path.normalize().multiply(maxSpeed);
                 }

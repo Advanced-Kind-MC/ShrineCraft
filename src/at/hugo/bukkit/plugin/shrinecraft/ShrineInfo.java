@@ -167,6 +167,10 @@ public class ShrineInfo {
         return isAt(center.getBlock(), direction, design, offset);
     }
 
+    public boolean wouldAcceptAnyOf(List<Item> items) {
+        return recipes.stream().anyMatch(recipe -> recipe.wouldAcceptAnyOf(items));
+    }
+
     public static class ShrineInputLocation {
         private final @NotNull Location location;
         private final @NotNull DesignManager.Design.Direction direction;
