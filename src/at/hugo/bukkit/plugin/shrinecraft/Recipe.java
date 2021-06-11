@@ -1,9 +1,12 @@
 package at.hugo.bukkit.plugin.shrinecraft;
 
 import java.util.Collection;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.advancedkind.plugin.utils.utils.ConfigUtils;
@@ -12,41 +15,38 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.text.serializer.plain.PlainComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Item;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BookMeta;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class Recipe {
     private static class RecipeItem {
-        final int amount;
-        final Material material;
-        final Integer customModel;
-        final String name;
-        final List<String> lore;
+        private final int amount;
+        private final @Nullable Material material;
+        private final @Nullable Integer customModel;
+        private final @NotNull HashMap<Enchantment, Integer> enchantments = new HashMap<>();
 
-        public RecipeItem(final int amount, final Material material, final Integer customModel, final String name,
-                          final List<String> lore) {
+        public RecipeItem(final int amount, final @Nullable Material material, final @Nullable Integer customModel, final @Nullable HashMap<Enchantment, Integer> enchantments) {
             this.amount = amount;
             this.material = material;
             this.customModel = customModel;
-            this.name = name;
-            this.lore = lore;
+            if (enchantments != null) {
+                this.enchantments.putAll(enchantments);
+            }
         }
 
         boolean isFulfilledBy(final Collection<ItemStack> items) {
             int count = 0;
             for (final ItemStack item : items) {
-                final ItemMeta meta = item.getItemMeta();
-                if (!material.equals(item.getType()))
-                    continue;
-                if (customModel != null && meta.getCustomModelData() != customModel)
-                    continue;
-                if (name != null && (!meta.hasDisplayName() || !PlainComponentSerializer.plain().serialize(meta.displayName()).equals(name)))
-                    continue;
-                if (lore != null && !lore.isEmpty() && (!meta.hasLore() || !meta.lore().stream().map(PlainComponentSerializer.plain()::serialize).collect(Collectors.toList()).containsAll(lore)))
-                    continue;
+                if (!matches(item)) continue;
                 count += item.getAmount();
             }
             return count >= amount;
@@ -57,15 +57,7 @@ public class Recipe {
             Iterator<ItemStack> iterator = items.iterator();
             while (iterator.hasNext()) {
                 final ItemStack item = iterator.next();
-                final ItemMeta meta = item.getItemMeta();
-                if (!material.equals(item.getType()))
-                    continue;
-                if (customModel != null && meta.getCustomModelData() != customModel)
-                    continue;
-                if (name != null && (!meta.hasDisplayName() || !PlainComponentSerializer.plain().serialize(meta.displayName()).equals(name)))
-                    continue;
-                if (lore != null && !lore.isEmpty() && (!meta.hasLore() || !meta.lore().stream().map(PlainComponentSerializer.plain()::serialize).collect(Collectors.toList()).containsAll(lore)))
-                    continue;
+                if (!matches(item)) continue;
                 if (count >= item.getAmount()) {
                     count -= item.getAmount();
                     iterator.remove();
@@ -78,9 +70,29 @@ public class Recipe {
             }
         }
 
+        private boolean matches(ItemStack item) {
+            final ItemMeta meta = item.getItemMeta();
+            if (!material.equals(item.getType()))
+                return false;
+            if (customModel != null && meta.getCustomModelData() != customModel)
+                return false;
+            if (meta instanceof EnchantmentStorageMeta) {
+                EnchantmentStorageMeta enchantmentStorageMeta = (EnchantmentStorageMeta) meta;
+                if (!enchantments.entrySet().stream().allMatch(entry -> entry.getValue().equals(enchantmentStorageMeta.getStoredEnchantLevel(entry.getKey())))) {
+                    return false;
+                }
+            } else {
+                if (!enchantments.entrySet().stream().allMatch(entry -> entry.getValue().equals(item.getEnchantmentLevel(entry.getKey())))) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         @Override
         public String toString() {
-            return String.format("%s (%s): %s; %s", material.toString(), amount, name, customModel);
+            return String.format("%s (%s): custom model: %s; enchantments: %s", material.toString(), amount, customModel, enchantments.entrySet().stream().map(entry -> String.format("%s (%s)", entry.getKey(), entry.getValue())).collect(Collectors.joining(", ")));
         }
     }
 
@@ -91,7 +103,7 @@ public class Recipe {
         final List<?> in = recipeConfig.getList("in");
         for (final Object object : in) {
             if (object instanceof String) {
-                recipeItems.add(new RecipeItem(1, ConfigUtils.getMaterial((String) object), null, null, null));
+                recipeItems.add(new RecipeItem(1, ConfigUtils.getMaterial((String) object), null, null));
                 continue;
             }
             final ConfigurationSection configurationSection = ConfigUtils.objectToConfigurationSection(object);
@@ -105,12 +117,30 @@ public class Recipe {
                 continue;
             }
             final int amount = configurationSection.getInt("amount", 1);
-            Integer customModel = configurationSection.getInt("customModel", -1);
-            if (customModel < 0)
-                customModel = null;
-            final String name = configurationSection.getString("name", null);
-            final List<String> lore = configurationSection.getStringList("lore");
-            recipeItems.add(new RecipeItem(amount, material, customModel, name, lore));
+            final Integer customModel = ConfigUtils.getInteger(configurationSection, "customModel");
+            final HashMap<Enchantment, Integer> enchantments = new HashMap<>();
+            final ConfigurationSection enchantmentSection;
+            if (configurationSection.isConfigurationSection("enchantments")) {
+                enchantmentSection = configurationSection.getConfigurationSection("enchantments");
+            } else if (configurationSection.isSet("enchantments")) {
+                enchantmentSection = ConfigUtils.objectToConfigurationSection(configurationSection.get("enchantments"));
+            } else {
+                enchantmentSection = null;
+            }
+
+            if (enchantmentSection != null) {
+                for (String enchantmentName : enchantmentSection.getKeys(false)) {
+                    Enchantment enchantment = Enchantment.getByKey(NamespacedKey.fromString(enchantmentName));
+                    if (enchantment == null) {
+                        JavaPlugin.getPlugin(ShrineCraftPlugin.class).getLogger().warning("Unknown enchantment: " + enchantmentName);
+                    }
+                    int level = enchantmentSection.getInt(enchantmentName);
+                    enchantments.put(enchantment, level);
+                }
+            }
+            RecipeItem recipeItem = new RecipeItem(amount, material, customModel, enchantments);
+            recipeItems.add(recipeItem);
+            JavaPlugin.getPlugin(ShrineCraftPlugin.class).getLogger().info(recipeItem.toString());
 
         }
 
