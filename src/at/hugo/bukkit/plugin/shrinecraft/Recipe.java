@@ -74,7 +74,7 @@ public class Recipe {
             final ItemMeta meta = item.getItemMeta();
             if (!material.equals(item.getType()))
                 return false;
-            if (customModel != null && (meta.hasCustomModelData() || meta.getCustomModelData() != customModel))
+            if (customModel != null && (!meta.hasCustomModelData() || meta.getCustomModelData() != customModel))
                 return false;
             if (meta instanceof EnchantmentStorageMeta) {
                 EnchantmentStorageMeta enchantmentStorageMeta = (EnchantmentStorageMeta) meta;
