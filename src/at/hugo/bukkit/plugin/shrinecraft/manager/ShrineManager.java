@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -43,6 +44,7 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.ItemMergeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerAttemptPickupItemEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -64,6 +66,7 @@ public class ShrineManager implements Listener {
     private BukkitTask particleAnimationTask = null;
 
     private final ConcurrentHashMap<Location, Shrine> shrineLocations = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Item, Player> playerItems = new ConcurrentHashMap<>();
     private final Set<Shrine> activeShrines = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Multimap<Material, ShrineInfo> shrineMap = MultimapBuilder.enumKeys(Material.class).linkedListValues().build();
 
@@ -171,6 +174,13 @@ public class ShrineManager implements Listener {
 
     private final @NotNull HashMap<Player, BukkitTask> droppedItemPlayers = new HashMap<>();
 
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onPlayerPickupOthersItem(PlayerAttemptPickupItemEvent event) {
+        if (playerItems.containsKey(event.getItem()) && !event.getPlayer().equals(playerItems.get(event.getItem()))) {
+            event.setCancelled(true);
+        }
+    }
+
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onItemDrop(PlayerDropItemEvent event) {
         BukkitTask task = droppedItemPlayers.put(event.getPlayer(), Bukkit.getScheduler().runTaskLater(plugin, () -> droppedItemPlayers.remove(event.getPlayer()), 5));
@@ -250,6 +260,7 @@ public class ShrineManager implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerQuit(PlayerQuitEvent event) {
         final Player player = event.getPlayer();
+        playerItems.entrySet().stream().filter(entry-> entry.getValue().equals(player)).map(Map.Entry::getKey).forEach(playerItems::remove);
         Iterator<Shrine> iterator = activeShrines.iterator();
         while (iterator.hasNext()) {
             Shrine shrine = iterator.next();
@@ -350,6 +361,7 @@ public class ShrineManager implements Listener {
         if (pickedUpItem) {
             player.playSound(PICKUP_SOUND);
         }
+        items.forEach(item -> playerItems.put(item, player));
     }
 
     private void finishedCrafting(final Shrine shrine, final ItemStack craftedItem) {
@@ -359,6 +371,7 @@ public class ShrineManager implements Listener {
         Bukkit.getScheduler().runTask(plugin, () -> {
             Item item = createItemEntity(shrine.getItemOutputLocation(), craftedItem);
             item.setPickupDelay(5);
+            playerItems.put(item, shrine.getPlayer());
         });
     }
 
@@ -385,6 +398,31 @@ public class ShrineManager implements Listener {
     }
 
     private void animateItems() {
+        Iterator<Map.Entry<Item, Player>> iterator = playerItems.entrySet().iterator();
+        final double maxSpeed = 0.2 * (ticksBetweenRefreshes + 1) * 0.2 * (ticksBetweenRefreshes + 1);
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
+            Item item = entry.getKey();
+            Player player = entry.getValue();
+
+            if (!item.isValid() || !player.isOnline()) {
+                iterator.remove();
+            }
+            if (item.hasGravity()) {
+                item.setGravity(false);
+            }
+            if (!item.getWorld().equals(player.getWorld())) {
+                item.teleportAsync(player.getLocation());
+            } else {
+                Vector path = player.getLocation().toVector().add(new Vector(0,1,0)).subtract(item.getLocation().toVector());
+                if (path.lengthSquared() > maxSpeed) {
+                    path.normalize().multiply(maxSpeed);
+                }
+                path.multiply(1D / (ticksBetweenRefreshes + 1));
+                item.setVelocity(path);
+            }
+
+        }
         for (Shrine shrine : activeShrines) {
             shrine.animate(time, radiansPerFrame, ticksBetweenRefreshes + 1);
         }
