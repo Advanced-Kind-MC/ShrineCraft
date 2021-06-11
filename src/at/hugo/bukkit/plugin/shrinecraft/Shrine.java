@@ -5,10 +5,12 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.CreatureSpawnEvent;
+import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.ItemMergeEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
@@ -81,7 +83,7 @@ public class Shrine {
         previewItem.setGravity(false);
         previewItem.setInvulnerable(true);
         previewItem.setPersistent(false);
-        previewItem.setTicksLived(1);
+        previewItem.setTicksLived(2);
         previewItem.setVelocity(Utils.VECTOR_ZERO);
 
         previewItem.setCanMobPickup(false);
@@ -106,6 +108,7 @@ public class Shrine {
         return false;
     }
 
+
     public void reload() {
         timeoutTicks = plugin.getConfig().getLong("shrine-timeout") * 20L;
     }
@@ -116,12 +119,8 @@ public class Shrine {
         timeoutTask = Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> onTimeout.accept(this), timeoutTicks);
     }
 
-    public boolean onItemMerge(final ItemMergeEvent event) {
-        if (items.contains(event.getEntity()) || items.contains(event.getTarget())) {
-            event.setCancelled(true);
-            return true;
-        }
-        return false;
+    public boolean containsItem(Entity item) {
+        return items.contains(item) || previewItem.equals(item);
     }
 
     public boolean canCraftItem() {
@@ -153,13 +152,14 @@ public class Shrine {
 
     private void prepareItem(Item item) {
         item.getPersistentDataContainer().set(plugin.getModifiedItemKey(), PersistentDataType.BYTE, (byte) 1);
+        item.setVelocity(Utils.VECTOR_ZERO);
         item.setGravity(false);
+        previewItem.setInvulnerable(true);
         item.setFireTicks(0);
-        item.setInvulnerable(true);
         item.setCanMobPickup(false);
         item.setCanPlayerPickup(false);
         item.setWillAge(false);
-        item.setTicksLived(1);
+        item.setTicksLived(2);
     }
 
     public boolean isStillComplete() {
@@ -182,11 +182,18 @@ public class Shrine {
         return result;
     }
 
+    private Long craftingStartTime = null;
+
     public void animate(long time, double radiansPerFrame, int ticksTillNextFrame) {
         if (!isCrafting) {
             shrineInfo.getIdleAnimation().animate(List.copyOf(items), itemRotationCenter, time, radiansPerFrame, ticksTillNextFrame);
-        } else if (shrineInfo.getMergeAnimation().animate(List.copyOf(items), previewItem.getLocation(), time, radiansPerFrame, ticksTillNextFrame)) {
-            finishedCraftingConsumer.accept(this, shrineInfo.tryCraft(items));
+        } else {
+            if (craftingStartTime == null) {
+                craftingStartTime = time;
+            }
+            if (shrineInfo.getMergeAnimation().animate(List.copyOf(items), previewItem.getLocation(), time - craftingStartTime, radiansPerFrame, ticksTillNextFrame)) {
+                finishedCraftingConsumer.accept(this, shrineInfo.tryCraft(items));
+            }
         }
     }
 
@@ -201,11 +208,6 @@ public class Shrine {
     public Set<Location> getAllInputLocations() {
         return (Set<Location>) inputLocations.clone();
     }
-
-    public @NotNull Location getItemRotationCenter() {
-        return itemRotationCenter;
-    }
-
 
     private static List<Item> splitItem(Item item) {
         if (item.getItemStack().getAmount() == 1) return List.of(item);

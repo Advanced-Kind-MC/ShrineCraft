@@ -7,9 +7,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import at.hugo.bukkit.plugin.shrinecraft.ShrineCraftPlugin;
 import org.bukkit.Bukkit;
+import org.bukkit.FluidCollisionMode;
+import org.bukkit.Material;
+import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
+import org.bukkit.util.RayTraceResult;
 import org.jetbrains.annotations.NotNull;
 
 import at.hugo.bukkit.plugin.shrinecraft.event.ItemLandEvent;
@@ -46,14 +50,36 @@ public class DroppedItemManager {
                 continue;
             }
             UUID uuid = entry.getValue();
-            if (item.isInWater() || item.isInLava()) {
-                Bukkit.getScheduler().runTask(plugin, () -> Bukkit.getPluginManager().callEvent(new ItemLandEvent(item, item.getLocation().getBlock(), uuid)));
+            final Block landedAt;
+            if (item.isInWater() || item.isInLava() || item.getLocation().getBlock().getType().equals(Material.LAVA)) {
+                landedAt = item.getLocation().getBlock();
             } else if (item.isOnGround() && Math.abs(item.getVelocity().getX()) <= 0.01 && Math.abs(item.getVelocity().getZ()) <= 0.01) {
-                Bukkit.getScheduler().runTask(plugin, () -> Bukkit.getPluginManager().callEvent(new ItemLandEvent(item, item.getLocation().getBlock().getRelative(BlockFace.DOWN), uuid)));
+                landedAt = item.getLocation().getBlock().getRelative(BlockFace.DOWN);
             } else {
-                continue;
+                double distance = item.getVelocity().lengthSquared();
+                if(distance > 2){
+                    distance = Math.sqrt(distance);
+                } else if(distance < 1){
+                    distance = 1;
+                }
+                RayTraceResult rayTraceResult = item.getLocation().getWorld().rayTraceBlocks(item.getLocation().clone(), item.getVelocity(), distance, FluidCollisionMode.ALWAYS, false);
+                if (rayTraceResult != null && rayTraceResult.getHitBlock() != null) {
+                    Block rayTracedBlock = rayTraceResult.getHitBlock();
+                    if (rayTracedBlock.getType().equals(Material.LAVA)) {
+                        landedAt = rayTracedBlock;
+                    } else if (rayTracedBlock.getType().equals(Material.FIRE)) {
+                        landedAt = rayTracedBlock.getRelative(BlockFace.DOWN);
+                    } else {
+                        landedAt = null;
+                    }
+                } else {
+                    landedAt = null;
+                }
             }
-            iterator.remove();
+            if (landedAt != null) {
+                Bukkit.getScheduler().runTask(plugin, () -> Bukkit.getPluginManager().callEvent(new ItemLandEvent(item, landedAt, uuid)));
+                iterator.remove();
+            }
         }
     }
 }

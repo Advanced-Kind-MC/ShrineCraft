@@ -1,7 +1,10 @@
 package at.hugo.bukkit.plugin.shrinecraft.manager;
 
+import java.lang.reflect.InvocationTargetException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -13,6 +16,10 @@ import at.hugo.bukkit.plugin.shrinecraft.Shrine;
 import at.hugo.bukkit.plugin.shrinecraft.ShrineCraftPlugin;
 import at.hugo.bukkit.plugin.shrinecraft.ShrineInfo;
 import com.advancedkind.plugin.utils.utils.ConfigUtils;
+import com.comphenix.protocol.PacketType;
+import com.comphenix.protocol.ProtocolLibrary;
+import com.comphenix.protocol.ProtocolManager;
+import com.comphenix.protocol.events.PacketContainer;
 import com.destroystokyo.paper.ParticleBuilder;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
@@ -32,6 +39,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.ItemMergeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
@@ -164,7 +172,7 @@ public class ShrineManager implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onItemDrop(PlayerDropItemEvent event) {
-        BukkitTask task = droppedItemPlayers.put(event.getPlayer(), Bukkit.getScheduler().runTaskLater(plugin, () -> droppedItemPlayers.remove(event.getPlayer()), 1));
+        BukkitTask task = droppedItemPlayers.put(event.getPlayer(), Bukkit.getScheduler().runTaskLater(plugin, () -> droppedItemPlayers.remove(event.getPlayer()), 5));
         if (task != null) task.cancel();
     }
 
@@ -193,7 +201,7 @@ public class ShrineManager implements Listener {
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onMerge(ItemMergeEvent event) {
         for (Shrine shrine : activeShrines) {
-            if (shrine.onItemMerge(event)) {
+            if (shrine.containsItem(event.getEntity())) {
                 event.setCancelled(true);
                 return;
             }
@@ -204,7 +212,7 @@ public class ShrineManager implements Listener {
     public void onPlayerMove(PlayerMoveEvent event) {
         final Player player = event.getPlayer();
 
-        if(!event.getFrom().getWorld().equals(event.getTo().getWorld())){
+        if (!event.getFrom().getWorld().equals(event.getTo().getWorld())) {
             activeShrines.stream().filter(shrine -> shrine.getPlayer().equals(player)).forEach(this::removeShrine);
             return;
         }
@@ -257,7 +265,6 @@ public class ShrineManager implements Listener {
         // if the player isn't online anymore ignore it
         if (player == null)
             return;
-        plugin.getLogger().info("item landed that was thrown by " + player.getName());
 
         final Item item = event.getItem();
 
@@ -270,12 +277,10 @@ public class ShrineManager implements Listener {
         // check if the landed on block is even valid for shrines
         if (!shrineMap.containsKey(landedOnBlock.getType()))
             return;
-        plugin.getLogger().info("item landed on possible shrine block");
 
         boolean wasShrine = false;
         // is already a shrine here?
         if (shrineLocations.containsKey(location)) {
-            plugin.getLogger().info("found old shrine");
             final Shrine shrine = shrineLocations.get(location);
             wasShrine = true;
 
@@ -308,7 +313,6 @@ public class ShrineManager implements Listener {
             if (shrineInfo.hasSimilarRecipe(items)) {
                 ShrineInfo.ShrinePosition shrinePosition = shrineInfo.getShrinePositionAt(landedOnBlock);
                 if (shrinePosition != null) {
-                    plugin.getLogger().info("creating new shrine");
                     // create the shrine
                     final Shrine shrine = new Shrine(plugin, player, shrinePosition, this::removeShrine, this::finishedCrafting);
                     shrine.addAllItems(items);

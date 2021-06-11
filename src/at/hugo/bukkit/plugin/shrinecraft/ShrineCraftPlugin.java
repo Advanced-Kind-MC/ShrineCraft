@@ -26,7 +26,6 @@ public class ShrineCraftPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         modifiedItemKey = NamespacedKey.fromString("modifieditem", this);
-        tempEntityKey = NamespacedKey.fromString("tempentity", this);
 
         // create manager
         droppedItemManager = new DroppedItemManager(this);
@@ -73,11 +72,12 @@ public class ShrineCraftPlugin extends JavaPlugin {
         return designManager;
     }
 
+    public ShrineManager getShrineManager() {
+        return shrineManager;
+    }
+
     public NamespacedKey getModifiedItemKey() {
         return modifiedItemKey;
     }
 
-    public NamespacedKey getPreviewItemKey() {
-        return tempEntityKey;
-    }
 }

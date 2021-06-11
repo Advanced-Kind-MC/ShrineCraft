@@ -1,44 +1,67 @@
 package at.hugo.bukkit.plugin.shrinecraft.animation.merge;
 
+import at.hugo.bukkit.plugin.shrinecraft.ShrineCraftPlugin;
+import at.hugo.bukkit.plugin.shrinecraft.Utils;
 import com.destroystokyo.paper.ParticleBuilder;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.entity.Item;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
 
 import java.util.List;
 
 public class SimpleMergeAnimation implements IMergeAnimation {
+    private static final long SHRINK_START_TICK = 100;
+    private static final double MAX_ROTATION_SPEED_MULTIPLIER = 4D;
 
     /**
      * @return true when its finished
      */
     @Override
-    public boolean animate(List<Item> items, Location center, long time, double radiansPerFrame, int ticksTillNextFrame) {
+    public boolean animate(final List<Item> items, final Location center, long time, double radiansPerFrame, final int ticksTillNextFrame) {
+        time = time * ticksTillNextFrame;
         final Vector centerVector = center.toVector();
         boolean finished = true;
-        for (Item item : items) {
-            final Vector currentPos = item.getLocation().toVector().subtract(centerVector);
-            final double distanceSquaredToCenter = currentPos.lengthSquared();
-            final Vector toPos;
-            final double nextInwardDistance = 0.05 * ticksTillNextFrame;
-            if (distanceSquaredToCenter >= nextInwardDistance * nextInwardDistance) {
-                // Function used to speed up the rotation the further in it gets
-                // f(x) = 140 / (x * x + 10) + 1
-                toPos = currentPos.clone().rotateAroundY((20 / (distanceSquaredToCenter + 10) + 1) * radiansPerFrame);
-                toPos.subtract(toPos.clone().normalize().multiply(nextInwardDistance));
-            } else {
-                toPos = new Vector(0, 0, 0);
-            }
+        if (time < SHRINK_START_TICK) {
+            finished = false;
+            radiansPerFrame *= (MAX_ROTATION_SPEED_MULTIPLIER - 1) / SHRINK_START_TICK * time + 1;
 
-            final Vector path = toPos.subtract(currentPos).multiply(1D / ticksTillNextFrame);
-            item.setVelocity(path);
-            if (distanceSquaredToCenter >= 0.1) {
-                finished = false;
+            for (Item item : items) {
+                final Vector currentPos = item.getLocation().toVector().subtract(centerVector);
+                final Vector toPos = currentPos.clone().rotateAroundY(radiansPerFrame);
+                final Vector path = toPos.subtract(currentPos);
+                final Vector velocity = path.multiply(1D / ticksTillNextFrame);
+                item.setVelocity(velocity);
+            }
+        } else {
+            radiansPerFrame *= MAX_ROTATION_SPEED_MULTIPLIER;
+            for (Item item : items) {
+                final Vector currentPos = item.getLocation().toVector().subtract(centerVector);
+
+                final double horizontalDistanceSquaredToCenter = currentPos.getX() * currentPos.getX() + currentPos.getZ() * currentPos.getZ();
+                final double distanceSquaredToCenter = horizontalDistanceSquaredToCenter + currentPos.getY() * currentPos.getY();
+
+                if (distanceSquaredToCenter <= 0.01) {
+                    item.setVelocity(Utils.VECTOR_ZERO);
+                } else if (horizontalDistanceSquaredToCenter <= 0.25 * 0.25) {
+                    finished = false;
+                    final Vector path = currentPos.multiply(-1);
+                    final Vector velocity = path.multiply(1D / ticksTillNextFrame);
+                    item.setVelocity(velocity);
+                } else {
+                    finished = false;
+                    final Vector toPos = currentPos.clone().rotateAroundY(radiansPerFrame);
+                    toPos.subtract(toPos.clone().normalize().multiply(0.25));
+                    final Vector path = toPos.subtract(currentPos);
+                    final Vector velocity = path.multiply(1D / ticksTillNextFrame);
+                    item.setVelocity(velocity);
+                }
             }
         }
+
         if (finished) {
             ParticleBuilder particleBuilder = new ParticleBuilder(Particle.EXPLOSION_HUGE).location(center).receivers(25).force(true).offset(0, 0, 0).spawn();
             Sound sound = Sound.sound(Key.key(Key.MINECRAFT_NAMESPACE, "entity.generic.explode"), Sound.Source.PLAYER, 1, 1);
