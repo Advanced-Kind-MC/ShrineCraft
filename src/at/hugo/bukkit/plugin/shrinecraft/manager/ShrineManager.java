@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import at.hugo.bukkit.plugin.shrinecraft.Shrine;
 import at.hugo.bukkit.plugin.shrinecraft.ShrineCraftPlugin;
 import at.hugo.bukkit.plugin.shrinecraft.ShrineInfo;
+import at.hugo.bukkit.plugin.shrinecraft.Utils;
 import com.advancedkind.plugin.utils.utils.ConfigUtils;
 import com.comphenix.protocol.PacketType;
 import com.comphenix.protocol.ProtocolLibrary;
@@ -365,7 +366,7 @@ public class ShrineManager implements Listener {
         Item item = (Item) location.getWorld().spawnEntity(location, EntityType.DROPPED_ITEM);
         item.setItemStack(itemStack);
         item.setGravity(false);
-        item.setVelocity(new Vector());
+        item.setVelocity(Utils.VECTOR_ZERO);
         return item;
     }
 
