@@ -98,6 +98,7 @@ public class Shrine {
     public boolean onTriggerBlock(List<Block> blocks) {
         if (blocks.contains(interactBlock)) {
             if (canCraftItem()) {
+                previewItem.remove();
                 timeoutTask.cancel();
                 isCrafting = true;
             } else {

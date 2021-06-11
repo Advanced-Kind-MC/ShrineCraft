@@ -4,7 +4,7 @@
 
     <groupId>at.hugo.bukkit.plugin</groupId>
     <artifactId>shrinecraft</artifactId>
-    <version>1.1.2</version>
+    <version>1.1.4</version>
     <name>ShrineCraft</name>
     <description>A plugin that allows you to craft items at Shrines</description>
 
