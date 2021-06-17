@@ -212,16 +212,16 @@ public class Shrine {
 
     private static List<Item> splitItem(Item item) {
         if (item.getItemStack().getAmount() == 1) return List.of(item);
-        final Location location = item.getLocation();
-        final ItemStack itemStack = item.getItemStack().clone();
+        final ItemStack itemStack = item.getItemStack();
         final int amount = itemStack.getAmount();
-        final List<Item> result = new ArrayList<>(amount);
         itemStack.setAmount(1);
-        item.remove();
-        for (int i = 0; i < amount; i++) {
+        final Location location = item.getLocation();
+        final List<Item> result = new ArrayList<>(amount);
+        result.add(item);
+        for (int i = 1; i < amount; i++) {
             Item newItem = (Item) location.getWorld().spawnEntity(location, EntityType.DROPPED_ITEM);
             newItem.setItemStack(itemStack);
-            newItem.setVelocity(new Vector());
+            newItem.setVelocity(Utils.VECTOR_ZERO);
             result.add(newItem);
         }
         return result;

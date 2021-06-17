@@ -358,6 +358,7 @@ public class ShrineManager implements Listener {
         while (iterator.hasNext()) {
             Item item = iterator.next();
             if (player.getInventory().addItem(item.getItemStack()).isEmpty()) {
+                item.getItemStack().setAmount(0);
                 item.remove();
                 iterator.remove();
                 pickedUpItem = true;
