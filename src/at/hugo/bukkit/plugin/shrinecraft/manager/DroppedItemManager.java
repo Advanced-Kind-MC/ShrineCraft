@@ -14,6 +14,7 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.util.RayTraceResult;
+import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 
 import at.hugo.bukkit.plugin.shrinecraft.event.ItemLandEvent;
@@ -62,7 +63,7 @@ public class DroppedItemManager {
                 } else if(distance < 1){
                     distance = 1;
                 }
-                RayTraceResult rayTraceResult = item.getLocation().getWorld().rayTraceBlocks(item.getLocation().clone(), item.getVelocity(), distance, FluidCollisionMode.ALWAYS, false);
+                RayTraceResult rayTraceResult = item.getLocation().getWorld().rayTraceBlocks(item.getLocation().clone(), item.getVelocity().lengthSquared() <= 0 ? new Vector(0,-1,0) : item.getVelocity(), distance, FluidCollisionMode.ALWAYS, false);
                 if (rayTraceResult != null && rayTraceResult.getHitBlock() != null) {
                     Block rayTracedBlock = rayTraceResult.getHitBlock();
                     if (rayTracedBlock.getType().equals(Material.LAVA)) {
