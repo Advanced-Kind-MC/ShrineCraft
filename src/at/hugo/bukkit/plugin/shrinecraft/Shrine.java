@@ -215,6 +215,7 @@ public class Shrine {
         final ItemStack itemStack = item.getItemStack();
         final int amount = itemStack.getAmount();
         itemStack.setAmount(1);
+        item.setItemStack(itemStack);
         final Location location = item.getLocation();
         final List<Item> result = new ArrayList<>(amount);
         result.add(item);
