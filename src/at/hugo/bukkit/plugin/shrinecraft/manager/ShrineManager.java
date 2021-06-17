@@ -211,6 +211,10 @@ public class ShrineManager implements Listener {
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onMerge(ItemMergeEvent event) {
+        if (playerItems.contains(event.getEntity()) || playerItems.contains(event.getTarget())) {
+            event.setCancelled(true);
+            return;
+        }
         for (Shrine shrine : activeShrines) {
             if (shrine.containsItem(event.getEntity())) {
                 event.setCancelled(true);
