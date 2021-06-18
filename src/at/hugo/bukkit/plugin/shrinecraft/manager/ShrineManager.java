@@ -42,8 +42,10 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntityTeleportEvent;
 import org.bukkit.event.entity.ItemMergeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.InventoryPickupItemEvent;
 import org.bukkit.event.player.PlayerAttemptPickupItemEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -223,6 +225,35 @@ public class ShrineManager implements Listener {
         }
     }
 
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onHopperPickupItem(InventoryPickupItemEvent event) {
+        if (playerItems.containsKey(event.getItem())) {
+            event.setCancelled(true);
+            return;
+        }
+        for (Shrine shrine : activeShrines) {
+            if (shrine.containsItem(event.getItem())) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+    }
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onItemTeleport(EntityTeleportEvent event) {
+        if(!(event.getEntity() instanceof Item)) {
+            return;
+        }
+        if (playerItems.containsKey(event.getEntity())) {
+            event.setCancelled(true);
+            return;
+        }
+        for (Shrine shrine : activeShrines) {
+            if (shrine.containsItem(event.getEntity())) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+    }
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerMove(PlayerMoveEvent event) {
         final Player player = event.getPlayer();
