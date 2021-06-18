@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import at.hugo.bukkit.plugin.shrinecraft.Shrine;
 import at.hugo.bukkit.plugin.shrinecraft.ShrineCraftPlugin;
@@ -33,6 +34,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
@@ -218,7 +220,7 @@ public class ShrineManager implements Listener {
             return;
         }
         for (Shrine shrine : activeShrines) {
-            if (shrine.containsItem(event.getEntity())) {
+            if (shrine.containsItem(event.getEntity()) || shrine.containsItem(event.getTarget())) {
                 event.setCancelled(true);
                 return;
             }
@@ -231,75 +233,51 @@ public class ShrineManager implements Listener {
             event.setCancelled(true);
             return;
         }
-        for (Shrine shrine : activeShrines) {
-            if (shrine.containsItem(event.getItem())) {
-                event.setCancelled(true);
-                return;
-            }
+        if (doesShrinesIncludeItem(event.getItem())) {
+            event.setCancelled(true);
         }
     }
+
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onItemTeleport(EntityTeleportEvent event) {
-        if(!(event.getEntity() instanceof Item)) {
+        if (!(event.getEntity() instanceof Item)) {
             return;
         }
-        for (Shrine shrine : activeShrines) {
-            if (shrine.containsItem(event.getEntity())) {
-                event.setCancelled(true);
-                return;
-            }
+        if (doesShrinesIncludeItem((Item) event.getEntity())) {
+            event.setCancelled(true);
         }
     }
+
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerMove(PlayerMoveEvent event) {
         final Player player = event.getPlayer();
-
         if (!event.getFrom().getWorld().equals(event.getTo().getWorld())) {
-            activeShrines.stream().filter(shrine -> shrine.getPlayer().equals(player)).forEach(this::removeShrine);
+            removeShrines(player);
             return;
         }
-
-        Iterator<Shrine> iterator = activeShrines.iterator();
-        while (iterator.hasNext()) {
-            final Shrine shrine = iterator.next();
-            // check if player owns the shrine
-            if (!shrine.getPlayer().equals(player)) continue;
-
+        getShrines(player).forEach(shrine -> {
             final Location loc = shrine.getLocation().clone();
             loc.setY(event.getTo().getY());
             // check if hes further than max distance away from the shrine
             if (event.getTo().distanceSquared(loc) > maxDistanceFromShrineSquared) {
-                iterator.remove();
-                shrine.getAllInputLocations().forEach(shrineLocations::remove);
-                returnItemsToPlayer(shrine.disbandShrine(), player);
+                removeShrine(shrine);
             }
-        }
+        });
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onPlayerDeath(PlayerDeathEvent event) {
         final Player player = event.getEntity();
-        activeShrines.stream().filter(shrine -> shrine.getPlayer().equals(player)).forEach(shrine -> {
-            List<Item> items = shrine.disbandShrine();
-            items.forEach(Item::remove);
-            event.getDrops().addAll(items.stream().map(Item::getItemStack).collect(Collectors.toList()));
-            activeShrines.remove(shrine);
-            shrine.getAllInputLocations().forEach(shrineLocations::remove);
-        });
+        var items = getShrines(player).map(this::removeShrineAndGetItems).flatMap(List::stream).collect(Collectors.toList());
+        items.forEach(Entity::remove);
+        event.getDrops().addAll(items.stream().map(Item::getItemStack).collect(Collectors.toList()));
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerQuit(PlayerQuitEvent event) {
         final Player player = event.getPlayer();
-        playerItems.entrySet().stream().filter(entry -> entry.getValue().equals(player)).map(Map.Entry::getKey).forEach(playerItems::remove);
-        Iterator<Shrine> iterator = activeShrines.iterator();
-        while (iterator.hasNext()) {
-            Shrine shrine = iterator.next();
-            if (shrine.getPlayer().equals(player)) {
-                iterator.remove();
-                returnItemsToPlayer(shrine.disbandShrine(), player);
-            }
-        }
+        removeShrines(player);
+        removePlayerItems(player);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -376,10 +354,41 @@ public class ShrineManager implements Listener {
         }
     }
 
+    private boolean doesShrinesIncludeItem(Item item) {
+        for (Shrine shrine : activeShrines) {
+            if (shrine.containsItem(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void removeShrines(Player player) {
+        getShrines(player).forEach(this::removeShrine);
+    }
+
+    @NotNull
+    private Stream<Shrine> getShrines(Player player) {
+        return activeShrines.stream().filter(shrine -> shrine.getPlayer().equals(player));
+    }
+
+    @NotNull
+    private Stream<Item> getPlayerItems(Player player) {
+        return playerItems.entrySet().stream().filter(entry -> entry.getValue().equals(player)).map(Map.Entry::getKey);
+    }
+
+    private void removePlayerItems(Player player) {
+        getPlayerItems(player).forEach(playerItems::remove);
+    }
+
     private void removeShrine(final @NotNull Shrine shrine) {
+        returnItemsToPlayer(removeShrineAndGetItems(shrine), shrine.getPlayer());
+    }
+
+    private List<Item> removeShrineAndGetItems(final @NotNull Shrine shrine) {
         activeShrines.remove(shrine);
         shrine.getAllInputLocations().forEach(shrineLocations::remove);
-        returnItemsToPlayer(shrine.disbandShrine(), shrine.getPlayer());
+        return shrine.disbandShrine();
     }
 
     private void returnItemsToPlayer(List<Item> items, Player player) {
