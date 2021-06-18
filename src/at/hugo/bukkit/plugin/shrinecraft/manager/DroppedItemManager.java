@@ -1,11 +1,7 @@
 package at.hugo.bukkit.plugin.shrinecraft.manager;
 
-import java.util.Iterator;
-import java.util.UUID;
-import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentHashMap;
-
 import at.hugo.bukkit.plugin.shrinecraft.ShrineCraftPlugin;
+import at.hugo.bukkit.plugin.shrinecraft.event.ItemLandEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Material;
@@ -17,7 +13,10 @@ import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 
-import at.hugo.bukkit.plugin.shrinecraft.event.ItemLandEvent;
+import java.util.Iterator;
+import java.util.Map.Entry;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class DroppedItemManager {
     private final @NotNull ShrineCraftPlugin plugin;

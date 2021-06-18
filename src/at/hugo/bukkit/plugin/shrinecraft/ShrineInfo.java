@@ -1,11 +1,5 @@
 package at.hugo.bukkit.plugin.shrinecraft;
 
-import java.util.Collection;
-import java.util.EnumSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
-
 import at.hugo.bukkit.plugin.shrinecraft.animation.idle.CircularIdleAnimation;
 import at.hugo.bukkit.plugin.shrinecraft.animation.idle.IIdleAnimation;
 import at.hugo.bukkit.plugin.shrinecraft.animation.merge.IMergeAnimation;
@@ -21,6 +15,12 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.BlockVector;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Collection;
+import java.util.EnumSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
 
 public class ShrineInfo {
     private final @NotNull ShrineCraftPlugin plugin;

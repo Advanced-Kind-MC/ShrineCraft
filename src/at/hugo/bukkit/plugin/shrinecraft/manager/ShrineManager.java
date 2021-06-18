@@ -1,32 +1,14 @@
 package at.hugo.bukkit.plugin.shrinecraft.manager;
 
-import java.lang.reflect.InvocationTargetException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import at.hugo.bukkit.plugin.shrinecraft.Shrine;
 import at.hugo.bukkit.plugin.shrinecraft.ShrineCraftPlugin;
 import at.hugo.bukkit.plugin.shrinecraft.ShrineInfo;
 import at.hugo.bukkit.plugin.shrinecraft.Utils;
+import at.hugo.bukkit.plugin.shrinecraft.event.ItemLandEvent;
 import com.advancedkind.plugin.utils.utils.ConfigUtils;
-import com.comphenix.protocol.PacketType;
-import com.comphenix.protocol.ProtocolLibrary;
-import com.comphenix.protocol.ProtocolManager;
-import com.comphenix.protocol.events.PacketContainer;
 import com.destroystokyo.paper.ParticleBuilder;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
-
 import net.kyori.adventure.sound.Sound;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
@@ -42,9 +24,8 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityTeleportEvent;
+import org.bukkit.event.entity.ItemDespawnEvent;
 import org.bukkit.event.entity.ItemMergeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryPickupItemEvent;
@@ -55,11 +36,19 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
-import org.bukkit.util.BlockVector;
 import org.bukkit.util.Vector;
-
-import at.hugo.bukkit.plugin.shrinecraft.event.ItemLandEvent;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ShrineManager implements Listener {
     private static final Sound PICKUP_SOUND = Sound.sound(org.bukkit.Sound.ENTITY_ITEM_PICKUP, Sound.Source.PLAYER, .25f, 1);

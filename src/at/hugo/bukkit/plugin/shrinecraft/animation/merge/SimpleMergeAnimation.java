@@ -1,6 +1,5 @@
 package at.hugo.bukkit.plugin.shrinecraft.animation.merge;
 
-import at.hugo.bukkit.plugin.shrinecraft.ShrineCraftPlugin;
 import at.hugo.bukkit.plugin.shrinecraft.Utils;
 import com.destroystokyo.paper.ParticleBuilder;
 import net.kyori.adventure.key.Key;
@@ -8,7 +7,6 @@ import net.kyori.adventure.sound.Sound;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.entity.Item;
-import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
 
 import java.util.List;
