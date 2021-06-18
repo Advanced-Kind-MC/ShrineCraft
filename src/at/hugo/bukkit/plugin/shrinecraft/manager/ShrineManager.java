@@ -239,6 +239,13 @@ public class ShrineManager implements Listener {
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onItemDespawn(ItemDespawnEvent event) {
+        if (doesShrinesIncludeItem(event.getEntity())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onItemTeleport(EntityTeleportEvent event) {
         if (!(event.getEntity() instanceof Item)) {
             return;
