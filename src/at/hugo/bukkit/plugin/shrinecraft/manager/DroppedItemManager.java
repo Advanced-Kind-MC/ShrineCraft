@@ -57,12 +57,12 @@ public class DroppedItemManager {
                 landedAt = item.getLocation().getBlock().getRelative(BlockFace.DOWN);
             } else {
                 double distance = item.getVelocity().lengthSquared();
-                if(distance > 2){
+                if (distance > 2) {
                     distance = Math.sqrt(distance);
-                } else if(distance < 1){
+                } else if (distance < 1) {
                     distance = 1;
                 }
-                RayTraceResult rayTraceResult = item.getLocation().getWorld().rayTraceBlocks(item.getLocation().clone(), item.getVelocity().lengthSquared() <= 0 ? new Vector(0,-1,0) : item.getVelocity(), distance, FluidCollisionMode.ALWAYS, false);
+                RayTraceResult rayTraceResult = item.getLocation().getWorld().rayTraceBlocks(item.getLocation().clone(), item.getVelocity().lengthSquared() <= 0 ? new Vector(0, -1, 0) : item.getVelocity(), distance, FluidCollisionMode.ALWAYS, false);
                 if (rayTraceResult != null && rayTraceResult.getHitBlock() != null) {
                     Block rayTracedBlock = rayTraceResult.getHitBlock();
                     if (rayTracedBlock.getType().equals(Material.LAVA)) {
@@ -77,7 +77,10 @@ public class DroppedItemManager {
                 }
             }
             if (landedAt != null) {
-                Bukkit.getScheduler().runTask(plugin, () -> Bukkit.getPluginManager().callEvent(new ItemLandEvent(item, landedAt, uuid)));
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (item.isValid())
+                        Bukkit.getPluginManager().callEvent(new ItemLandEvent(item, landedAt, uuid));
+                });
                 iterator.remove();
             }
         }
