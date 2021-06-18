@@ -243,10 +243,6 @@ public class ShrineManager implements Listener {
         if(!(event.getEntity() instanceof Item)) {
             return;
         }
-        if (playerItems.containsKey(event.getEntity())) {
-            event.setCancelled(true);
-            return;
-        }
         for (Shrine shrine : activeShrines) {
             if (shrine.containsItem(event.getEntity())) {
                 event.setCancelled(true);
