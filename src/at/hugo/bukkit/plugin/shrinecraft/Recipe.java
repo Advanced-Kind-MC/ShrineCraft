@@ -94,6 +94,7 @@ public class Recipe {
 
     private final LinkedList<RecipeItem> recipeItems = new LinkedList<>();
     private final ItemStack result;
+    private final int recipeItemCount;
 
     public Recipe(final ConfigurationSection recipeConfig) {
         final List<?> in = recipeConfig.getList("in");
@@ -140,7 +141,10 @@ public class Recipe {
 
         }
 
+        recipeItemCount = recipeItems.stream().mapToInt(recipeItem -> recipeItem.amount).sum();
+
         final ConfigurationSection outConfig = ConfigUtils.objectToConfigurationSection(recipeConfig.get("out"));
+
         if (outConfig.isString("CustomItems-item")) {
             final String customItemsItemName = outConfig.getString("CustomItems-item");
             if (!Bukkit.getPluginManager().isPluginEnabled("CustomItems")) {
@@ -168,15 +172,17 @@ public class Recipe {
         if (outConfig.isInt("customModel"))
             meta.setCustomModelData(outConfig.getInt("customModel"));
         result.setItemMeta(meta);
+
     }
 
     public ItemStack isFulfilledBy(final Collection<Item> items) {
+        int itemCount = items.stream().mapToInt(item -> item.getItemStack().getAmount()).sum();
+        if (itemCount != recipeItemCount) return null;
         final Collection<ItemStack> itemStacks = Utils.condenseItemsToItemStacks(items);
         for (final RecipeItem item : recipeItems) {
-            if (!item.isFulfilledBy(itemStacks))
-                return null;
+            item.reduceListWithApplyingItems(itemStacks);
         }
-        return result;
+        return itemStacks.isEmpty() ? result.clone() : null;
     }
 
     public boolean isSemiFulfilled(Collection<Item> items) {
@@ -187,7 +193,7 @@ public class Recipe {
         return itemStacks.isEmpty();
     }
 
-    public boolean wouldAcceptAnyOf(List<Item> items){
+    public boolean wouldAcceptAnyOf(List<Item> items) {
         return items.stream().anyMatch(item -> recipeItems.stream().anyMatch(recipeItem -> recipeItem.matches(item.getItemStack())));
     }
 }

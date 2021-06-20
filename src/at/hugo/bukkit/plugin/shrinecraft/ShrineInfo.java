@@ -120,7 +120,6 @@ public class ShrineInfo {
         return null;
     }
 
-
     private BlockVector getOffset(final Block block, DesignManager.Design.Direction direction, DesignManager.Design design) {
         BlockVector[] offsets = design.inputOffsets;
         for (BlockVector offset : offsets) {
@@ -169,36 +168,6 @@ public class ShrineInfo {
 
     public boolean wouldAcceptAnyOf(List<Item> items) {
         return recipes.stream().anyMatch(recipe -> recipe.wouldAcceptAnyOf(items));
-    }
-
-    public static class ShrineInputLocation {
-        private final @NotNull Location location;
-        private final @NotNull DesignManager.Design.Direction direction;
-        private final @NotNull BlockVector offset;
-        private final @NotNull ShrineInfo shrineInfo;
-
-        public ShrineInputLocation(@NotNull Location location, @NotNull DesignManager.Design.Direction direction, @NotNull BlockVector offset, @NotNull ShrineInfo shrineInfo) {
-            this.location = location;
-            this.direction = direction;
-            this.offset = offset;
-            this.shrineInfo = shrineInfo;
-        }
-
-        public Location getLocation() {
-            return location;
-        }
-
-        public DesignManager.Design.Direction getDirection() {
-            return direction;
-        }
-
-        public BlockVector getOffset() {
-            return offset;
-        }
-
-        public ShrineInfo getShrineInfo() {
-            return shrineInfo;
-        }
     }
 
     public static class ShrinePosition {
