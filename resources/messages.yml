@@ -5,6 +5,7 @@ commands:
     start: "%prefix% Reloading"
     finish: "%prefix% Reload Finished"
   setdesign:
+    worldedit-not-enabled: "%prefix% WorldEdit must be installed and enabled to use this command!"
     not-inside-region: "%prefix% You need to stand on the input block!"
     no-selection:  "%prefix% You need to create a WorldEdit selection first!"
     success: "%prefix% Successfully created the design named \"%name%\"!"

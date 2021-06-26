@@ -39,10 +39,15 @@ public class ShrineInfo {
         this.designKey = configurationSection.getString("design");
 
         final List<?> recipesConfig = configurationSection.getList("recipes");
-
+        int recipeIndex = 0;
         for (final Object recipeObject : recipesConfig) {
+            plugin.getLogger().info(String.format("Loading Recipe #%s", ++recipeIndex));
             final ConfigurationSection recipeConfig = ConfigUtils.objectToConfigurationSection(recipeObject);
-            recipes.add(new Recipe(recipeConfig));
+            try {
+                recipes.add(new Recipe(recipeConfig));
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().severe(String.format("Could not load Recipe #%s, %s", recipeIndex, e.getMessage()));
+            }
         }
 
         if (configurationSection.isString("direction")) {

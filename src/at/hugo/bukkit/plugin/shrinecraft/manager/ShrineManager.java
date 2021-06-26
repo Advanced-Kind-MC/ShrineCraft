@@ -148,7 +148,9 @@ public class ShrineManager implements Listener {
 
         // region: shrine info loading
         shrineMap.clear();
+        int shrineIndex = 0;
         for (Object shrineObject : plugin.getConfig().getList("shrines")) {
+            plugin.getLogger().info(String.format("Loading Shrine #%s", ++shrineIndex));
             ShrineInfo shrineInfo = new ShrineInfo(plugin, ConfigUtils.objectToConfigurationSection(shrineObject));
             shrineInfo.getCraftingBlockMaterials().forEach(material -> shrineMap.put(material, shrineInfo));
         }

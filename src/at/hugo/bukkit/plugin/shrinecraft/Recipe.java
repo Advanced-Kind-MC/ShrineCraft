@@ -24,6 +24,126 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class Recipe {
+    private final LinkedList<RecipeItem> recipeItems = new LinkedList<>();
+    private final ItemStack result;
+    private final int recipeItemCount;
+
+    public Recipe(final ConfigurationSection recipeConfig) throws IllegalArgumentException {
+        // parse recipe input items
+        final List<?> in = recipeConfig.getList("in");
+        for (final Object object : in) {
+            if (object instanceof String material) {
+                // just the material is given
+                recipeItems.add(new RecipeItem(1, ConfigUtils.getMaterial(material), null, null));
+                continue;
+            }
+            // get configuration section from object
+            final ConfigurationSection configurationSection = ConfigUtils.objectToConfigurationSection(object);
+            if (configurationSection == null) {
+                // couldnt parse configuration section
+                throw new IllegalArgumentException(String.format("Could not parse input item number %s, could not get Configuration Section!", recipeItems.size() + 1));
+            }
+            // get material
+            final Material material = ConfigUtils.getMaterial(configurationSection, "material");
+            if (material == null) {
+                throw new IllegalArgumentException(String.format("Could not parse input item number %s, unknown Material \"%s\"!", recipeItems.size() + 1, configurationSection.getString("material")));
+            }
+            // get amount
+            final int amount = configurationSection.getInt("amount", 1);
+            // get custom model number
+            final Integer customModel = ConfigUtils.getInteger(configurationSection, "customModel");
+            // load enchantments
+            final HashMap<Enchantment, Integer> enchantments = new HashMap<>();
+            if(configurationSection.isSet("enchantments")){
+                final ConfigurationSection enchantmentSection = ConfigUtils.objectToConfigurationSection(configurationSection.get("enchantments"));
+                if (enchantmentSection != null) {
+                    for (String enchantmentName : enchantmentSection.getKeys(false)) {
+                        Enchantment enchantment = Enchantment.getByKey(NamespacedKey.fromString(enchantmentName));
+                        if (enchantment == null) {
+                            throw new IllegalArgumentException(String.format("Could not parse input item number %s, Unknown Enchantment \"%s\"!", recipeItems.size() + 1, enchantmentName));
+                        }
+                        int level = enchantmentSection.getInt(enchantmentName);
+                        enchantments.put(enchantment, level);
+                    }
+                }
+            }
+            RecipeItem recipeItem = new RecipeItem(amount, material, customModel, enchantments);
+            recipeItems.add(recipeItem);
+            JavaPlugin.getPlugin(ShrineCraftPlugin.class).getLogger().info(recipeItem.toString());
+        }
+
+        // save the amount of items needed for this recipe
+        recipeItemCount = recipeItems.stream().mapToInt(recipeItem -> recipeItem.amount).sum();
+
+        // load item result
+        final ConfigurationSection outConfig = ConfigUtils.objectToConfigurationSection(recipeConfig.get("out"));
+
+        // CustomItems support
+        if (outConfig.isString("CustomItems-item")) {
+            // check if plugin is enabled
+            if (!Bukkit.getPluginManager().isPluginEnabled("CustomItems")) {
+                JavaPlugin.getPlugin(ShrineCraftPlugin.class).getLogger().severe("Could not get CustomItems item, plugin is not enabled or installed!");
+            } else {
+                final String customItemsItemName = outConfig.getString("CustomItems-item");
+                final ItemStack customItemItem = CustomItemsAPI.getCustomItem(customItemsItemName);
+                if (customItemItem == null) {
+                    throw new IllegalArgumentException(String.format("Could not load result item, unknown CustomItems item \"%s\"!", customItemsItemName));
+                }
+
+                result = customItemItem;
+                return;
+            }
+        }
+        // load out item material
+        if(!outConfig.isString("material")){
+            throw new IllegalArgumentException("Could not load result item, no material is defined!");
+        }
+        Material material = ConfigUtils.getMaterial(outConfig, "material");
+        if(material == null) {
+            String materialName = outConfig.getString("material");
+            throw new IllegalArgumentException(String.format("Could not load result item, unknown Material \"%s\"!", materialName));
+        }
+        // create item
+        result = new ItemStack(material, outConfig.getInt("amount", 1));
+        ItemMeta meta = result.getItemMeta();
+        // set item name
+        if (outConfig.isString("name")) {
+            meta.displayName(ConfigUtils.getComponent(outConfig, "name"));
+        }
+        // set item lore
+        if (outConfig.isList("lore")) {
+            meta.lore(outConfig.getStringList("lore").stream().map(LegacyComponentSerializer.legacyAmpersand()::deserialize).collect(Collectors.toList()));
+        }
+        // set custom model data
+        if (outConfig.isInt("customModel")) {
+            meta.setCustomModelData(outConfig.getInt("customModel"));
+        }
+        // apply item meta
+        result.setItemMeta(meta);
+    }
+
+    public ItemStack isFulfilledBy(final Collection<Item> items) {
+        int itemCount = items.stream().mapToInt(item -> item.getItemStack().getAmount()).sum();
+        if (itemCount != recipeItemCount) return null;
+        final Collection<ItemStack> itemStacks = Utils.condenseItemsToItemStacks(items);
+        for (final RecipeItem item : recipeItems) {
+            item.reduceListWithApplyingItems(itemStacks);
+        }
+        return itemStacks.isEmpty() ? result.clone() : null;
+    }
+
+    public boolean isSemiFulfilled(Collection<Item> items) {
+        final Collection<ItemStack> itemStacks = Utils.condenseItemsToItemStacks(items);
+        for (final RecipeItem item : recipeItems) {
+            item.reduceListWithApplyingItems(itemStacks);
+        }
+        return itemStacks.isEmpty();
+    }
+
+    public boolean wouldAcceptAnyOf(List<Item> items) {
+        return items.stream().anyMatch(item -> recipeItems.stream().anyMatch(recipeItem -> recipeItem.matches(item.getItemStack())));
+    }
+
     private static class RecipeItem {
         private final int amount;
         private final @Nullable Material material;
@@ -90,110 +210,5 @@ public class Recipe {
         public String toString() {
             return String.format("%s (%s): custom model: %s; enchantments: %s", material.toString(), amount, customModel, enchantments.entrySet().stream().map(entry -> String.format("%s (%s)", entry.getKey(), entry.getValue())).collect(Collectors.joining(", ")));
         }
-    }
-
-    private final LinkedList<RecipeItem> recipeItems = new LinkedList<>();
-    private final ItemStack result;
-    private final int recipeItemCount;
-
-    public Recipe(final ConfigurationSection recipeConfig) {
-        final List<?> in = recipeConfig.getList("in");
-        for (final Object object : in) {
-            if (object instanceof String) {
-                recipeItems.add(new RecipeItem(1, ConfigUtils.getMaterial((String) object), null, null));
-                continue;
-            }
-            final ConfigurationSection configurationSection = ConfigUtils.objectToConfigurationSection(object);
-            if (configurationSection == null) {
-                Bukkit.getLogger().severe("Could not load recipe!");
-                continue;
-            }
-            final Material material = ConfigUtils.getMaterial(configurationSection, "material");
-            if (material == null) {
-                Bukkit.getLogger().severe("Unknown Material \"" + configurationSection.getString("material") + "\" for your item inputs");
-                continue;
-            }
-            final int amount = configurationSection.getInt("amount", 1);
-            final Integer customModel = ConfigUtils.getInteger(configurationSection, "customModel");
-            final HashMap<Enchantment, Integer> enchantments = new HashMap<>();
-            final ConfigurationSection enchantmentSection;
-            if (configurationSection.isConfigurationSection("enchantments")) {
-                enchantmentSection = configurationSection.getConfigurationSection("enchantments");
-            } else if (configurationSection.isSet("enchantments")) {
-                enchantmentSection = ConfigUtils.objectToConfigurationSection(configurationSection.get("enchantments"));
-            } else {
-                enchantmentSection = null;
-            }
-
-            if (enchantmentSection != null) {
-                for (String enchantmentName : enchantmentSection.getKeys(false)) {
-                    Enchantment enchantment = Enchantment.getByKey(NamespacedKey.fromString(enchantmentName));
-                    if (enchantment == null) {
-                        JavaPlugin.getPlugin(ShrineCraftPlugin.class).getLogger().warning("Unknown enchantment: " + enchantmentName);
-                    }
-                    int level = enchantmentSection.getInt(enchantmentName);
-                    enchantments.put(enchantment, level);
-                }
-            }
-            RecipeItem recipeItem = new RecipeItem(amount, material, customModel, enchantments);
-            recipeItems.add(recipeItem);
-            JavaPlugin.getPlugin(ShrineCraftPlugin.class).getLogger().info(recipeItem.toString());
-
-        }
-
-        recipeItemCount = recipeItems.stream().mapToInt(recipeItem -> recipeItem.amount).sum();
-
-        final ConfigurationSection outConfig = ConfigUtils.objectToConfigurationSection(recipeConfig.get("out"));
-
-        if (outConfig.isString("CustomItems-item")) {
-            final String customItemsItemName = outConfig.getString("CustomItems-item");
-            if (!Bukkit.getPluginManager().isPluginEnabled("CustomItems")) {
-                JavaPlugin.getPlugin(ShrineCraftPlugin.class).getLogger().warning("CustomItems not enabled or installed!");
-            } else {
-                ItemStack customItemItem = CustomItemsAPI.getCustomItem(customItemsItemName);
-                if (customItemItem == null) {
-                    JavaPlugin.getPlugin(ShrineCraftPlugin.class).getLogger().warning(String.format("Unknown CustomItems item \"%s\"!", customItemsItemName));
-                } else {
-                    result = customItemItem;
-                    return;
-                }
-            }
-        }
-
-        result = new ItemStack(ConfigUtils.getMaterial(outConfig, "material"));
-        if (outConfig.isInt("amount"))
-            result.setAmount(outConfig.getInt("amount"));
-        ItemMeta meta = result.getItemMeta();
-        if (outConfig.isString("name"))
-            meta.displayName(ConfigUtils.getComponent(outConfig, "name"));
-
-        if (outConfig.isList("lore"))
-            meta.lore(outConfig.getStringList("lore").stream().map(LegacyComponentSerializer.legacyAmpersand()::deserialize).collect(Collectors.toList()));
-        if (outConfig.isInt("customModel"))
-            meta.setCustomModelData(outConfig.getInt("customModel"));
-        result.setItemMeta(meta);
-
-    }
-
-    public ItemStack isFulfilledBy(final Collection<Item> items) {
-        int itemCount = items.stream().mapToInt(item -> item.getItemStack().getAmount()).sum();
-        if (itemCount != recipeItemCount) return null;
-        final Collection<ItemStack> itemStacks = Utils.condenseItemsToItemStacks(items);
-        for (final RecipeItem item : recipeItems) {
-            item.reduceListWithApplyingItems(itemStacks);
-        }
-        return itemStacks.isEmpty() ? result.clone() : null;
-    }
-
-    public boolean isSemiFulfilled(Collection<Item> items) {
-        final Collection<ItemStack> itemStacks = Utils.condenseItemsToItemStacks(items);
-        for (final RecipeItem item : recipeItems) {
-            item.reduceListWithApplyingItems(itemStacks);
-        }
-        return itemStacks.isEmpty();
-    }
-
-    public boolean wouldAcceptAnyOf(List<Item> items) {
-        return items.stream().anyMatch(item -> recipeItems.stream().anyMatch(recipeItem -> recipeItem.matches(item.getItemStack())));
     }
 }

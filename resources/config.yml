@@ -46,3 +46,8 @@ shrines:
             - poop
             - sir
           customModel: 11
+      - in:
+          - material: NETHERITE_SWORD
+        out:
+          # CustomItems integration example
+          CustomItems-item: "FireSword"
