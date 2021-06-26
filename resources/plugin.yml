@@ -1,14 +1,13 @@
-name: ${project.name}
-version: ${project.version}
-description: ${project.description}
+name: @name@
+version: @version@
+description: @description@
 load: POSTWORLD
-api-version: '1.16'
+api-version: @api@
 author: Hugo B.
 authors:
   - Matt12
 
-main: ${project.groupId}.${project.artifactId}.${project.mainClass}
-prefix: ${project.shortName}
+main: @group@.@artifact@.@main@
 
 softdepend:
   - WorldEdit

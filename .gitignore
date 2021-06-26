@@ -1,12 +1,21 @@
+# intellij
 /.idea/
 /*.iml
 
+# gradle
+/.gradle/
+/build/
+!/gradle/wrapper/gradle-wrapper.jar
+.gradletasknamecache
+
+# run paper
+/run/
+
+# maven
 /target/
-/.vscode/
-/.settings/
-
-/.project
-/.classpath
-
 /dependency-reduced-pom.xml
+
+# dependencies
+/dependencies/*.jar
+
 

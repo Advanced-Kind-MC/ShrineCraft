@@ -1,0 +1,97 @@
+import org.apache.tools.ant.filters.ReplaceTokens
+
+plugins {
+    id 'com.github.johnrengelman.shadow' version '7.0.0'
+    id 'java'
+    id 'xyz.jpenilla.run-paper' version '1.0.3'
+}
+
+group = groupId
+
+java.sourceCompatibility JavaVersion.VERSION_16
+java.targetCompatibility JavaVersion.VERSION_16
+
+repositories {
+    mavenCentral()
+    // paper-api
+    maven { url 'https://papermc.io/repo/repository/maven-public/' }
+    // afc-paper
+    maven { url 'https://repo.aikar.co/content/groups/aikar/' }
+    // ADKUtils
+    maven {
+        url 'https://maven.pkg.github.com/Advanced-Kind-MC/ADKUtils'
+        credentials {
+            username = project.property("github.username")
+            password = project.findProperty("github.token")
+        }
+    }
+    // ProtocolLib
+//    maven { url 'https://repo.dmulloy2.net/repository/public/' }
+    // WorldEdit
+    maven { url 'https://maven.enginehub.org/repo/' }
+}
+
+dependencies {
+    implementation 'co.aikar:acf-paper:0.5.0-SNAPSHOT'
+    implementation 'com.advancedkind.plugin:utils:1.2.0'
+    compileOnly 'org.jetbrains:annotations:20.1.0'
+    compileOnly 'com.destroystokyo.paper:paper-api:1.16.5-R0.1-SNAPSHOT'
+    compileOnly 'com.sk89q.worldedit:worldedit-core:7.2.5'
+    compileOnly 'com.sk89q.worldedit:worldedit-bukkit:7.2.5'
+//    compileOnly 'com.comphenix.protocol:ProtocolLib:4.6.1-SNAPSHOT'
+    compileOnly files('dependencies/CustomItemsAPI_PLACEHOLDER.jar')
+    //system 'com.github.jojodmo:CustomItems:3.8.31'
+}
+shadowJar {
+    classifier ''
+    relocate 'co.aikar.commands', "${groupId}.${artifact}.acf"
+    relocate 'co.aikar.locales', "${groupId}.${artifact}.locales"
+    relocate 'com.advancedkind.plugin.utils', "${groupId}.${artifact}.utils"
+}
+build.dependsOn shadowJar
+
+compileJava.options.encoding 'UTF-8'
+compileTestJava.options.encoding 'UTF-8'
+javadoc.options.encoding 'UTF-8'
+
+compileJava {
+    options.compilerArgs << '-parameters'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir('src')
+        }
+        resources {
+            srcDir('resources')
+        }
+    }
+    test {
+        java {
+            srcDir('test')
+        }
+    }
+}
+
+tasks {
+    runServer {
+        dependsOn 'build'
+
+        minecraftVersion('1.17')
+    }
+}
+
+processResources {
+    filesMatching('**/plugin.yml') {
+        filter(ReplaceTokens, tokens: [
+                version    : project.property('version'),
+                api        : project.property('api'),
+                name       : project.property('pluginname'),
+                artifact   : project.property('artifact'),
+                main       : project.property('main'),
+                description: project.property('description'),
+                group    : project.property('groupId'),
+        ])
+    }
+}
