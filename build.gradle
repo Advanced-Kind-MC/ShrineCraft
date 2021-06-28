@@ -83,6 +83,7 @@ tasks {
 }
 
 processResources {
+    outputs.upToDateWhen { false }
     filesMatching('**/plugin.yml') {
         filter(ReplaceTokens, tokens: [
                 version    : project.property('version'),
