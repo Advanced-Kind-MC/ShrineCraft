@@ -32,7 +32,8 @@ public class Recipe {
         // parse recipe input items
         final List<?> in = recipeConfig.getList("in");
         for (final Object object : in) {
-            if (object instanceof String material) {
+            if (object instanceof String) {
+                String material = (String) object;
                 // just the material is given
                 recipeItems.add(new RecipeItem(1, ConfigUtils.getMaterial(material), null, null));
                 continue;
@@ -54,7 +55,7 @@ public class Recipe {
             final Integer customModel = ConfigUtils.getInteger(configurationSection, "customModel");
             // load enchantments
             final HashMap<Enchantment, Integer> enchantments = new HashMap<>();
-            if(configurationSection.isSet("enchantments")){
+            if (configurationSection.isSet("enchantments")) {
                 final ConfigurationSection enchantmentSection = ConfigUtils.objectToConfigurationSection(configurationSection.get("enchantments"));
                 if (enchantmentSection != null) {
                     for (String enchantmentName : enchantmentSection.getKeys(false)) {
@@ -95,11 +96,11 @@ public class Recipe {
             }
         }
         // load out item material
-        if(!outConfig.isString("material")){
+        if (!outConfig.isString("material")) {
             throw new IllegalArgumentException("Could not load result item, no material is defined!");
         }
         Material material = ConfigUtils.getMaterial(outConfig, "material");
-        if(material == null) {
+        if (material == null) {
             String materialName = outConfig.getString("material");
             throw new IllegalArgumentException(String.format("Could not load result item, unknown Material \"%s\"!", materialName));
         }

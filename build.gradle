@@ -8,8 +8,8 @@ plugins {
 
 group = groupId
 
-java.sourceCompatibility JavaVersion.VERSION_16
-java.targetCompatibility JavaVersion.VERSION_16
+java.sourceCompatibility JavaVersion.VERSION_11
+java.targetCompatibility JavaVersion.VERSION_11
 
 repositories {
     mavenCentral()
@@ -78,7 +78,7 @@ tasks {
     runServer {
         dependsOn 'build'
 
-        minecraftVersion('1.17')
+        minecraftVersion('1.16.5')
     }
 }
 
