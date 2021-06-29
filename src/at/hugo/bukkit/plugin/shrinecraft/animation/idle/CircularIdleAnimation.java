@@ -1,5 +1,6 @@
 package at.hugo.bukkit.plugin.shrinecraft.animation.idle;
 
+import at.hugo.bukkit.plugin.shrinecraft.Utils;
 import org.bukkit.Location;
 import org.bukkit.entity.Item;
 import org.bukkit.util.Vector;
@@ -86,8 +87,14 @@ public class CircularIdleAnimation implements IIdleAnimation {
                     path.setX(maxSpeedVector.getX());
                     path.setZ(maxSpeedVector.getZ());
                 }
-                final Vector velocity = path.multiply(1D / ticksTillNextFrame);
-                item.setVelocity(velocity);
+
+                if(item.getFireTicks() > 0) {
+                    item.setVelocity(Utils.VECTOR_ZERO);
+                    item.teleport(item.getLocation().clone().add(path));
+                } else {
+                    final Vector velocity = path.multiply(1D / ticksTillNextFrame);
+                    item.setVelocity(velocity);
+                }
 
                 // rotate for next item
                 if (itemsToGo % 2 == 0) {

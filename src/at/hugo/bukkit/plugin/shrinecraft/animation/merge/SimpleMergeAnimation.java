@@ -31,8 +31,13 @@ public class SimpleMergeAnimation implements IMergeAnimation {
                 final Vector currentPos = item.getLocation().toVector().subtract(centerVector);
                 final Vector toPos = currentPos.clone().rotateAroundY(radiansPerFrame);
                 final Vector path = toPos.subtract(currentPos);
-                final Vector velocity = path.multiply(1D / ticksTillNextFrame);
-                item.setVelocity(velocity);
+                if(item.getFireTicks() > 0) {
+                    item.setVelocity(Utils.VECTOR_ZERO);
+                    item.teleport(item.getLocation().clone().add(path));
+                } else {
+                    final Vector velocity = path.multiply(1D / ticksTillNextFrame);
+                    item.setVelocity(velocity);
+                }
             }
         } else {
             radiansPerFrame *= MAX_ROTATION_SPEED_MULTIPLIER;
@@ -42,21 +47,27 @@ public class SimpleMergeAnimation implements IMergeAnimation {
                 final double horizontalDistanceSquaredToCenter = currentPos.getX() * currentPos.getX() + currentPos.getZ() * currentPos.getZ();
                 final double distanceSquaredToCenter = horizontalDistanceSquaredToCenter + currentPos.getY() * currentPos.getY();
 
+                final Vector path;
                 if (distanceSquaredToCenter <= 0.01) {
                     item.setVelocity(Utils.VECTOR_ZERO);
+                    continue;
                 } else if (horizontalDistanceSquaredToCenter <= 0.25 * 0.25) {
                     finished = false;
-                    final Vector path = currentPos.multiply(-1);
-                    final Vector velocity = path.multiply(1D / ticksTillNextFrame);
-                    item.setVelocity(velocity);
+                    path = currentPos.multiply(-1);
                 } else {
                     finished = false;
                     final Vector toPos = currentPos.clone().rotateAroundY(radiansPerFrame);
                     toPos.subtract(toPos.clone().normalize().multiply(0.25));
-                    final Vector path = toPos.subtract(currentPos);
+                    path = toPos.subtract(currentPos);
+                }
+                if(item.getFireTicks() > 0) {
+                    item.setVelocity(Utils.VECTOR_ZERO);
+                    item.teleport(item.getLocation().clone().add(path));
+                } else {
                     final Vector velocity = path.multiply(1D / ticksTillNextFrame);
                     item.setVelocity(velocity);
                 }
+
             }
         }
 

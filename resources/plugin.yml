@@ -12,6 +12,7 @@ main: @group@.@artifact@.@main@
 softdepend:
   - WorldEdit
   - CustomItems
+  - ProtocolLib
 
 permissions:
   shrinecraft.command:

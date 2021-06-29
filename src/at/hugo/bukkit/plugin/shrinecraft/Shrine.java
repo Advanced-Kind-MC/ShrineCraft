@@ -1,6 +1,10 @@
 package at.hugo.bukkit.plugin.shrinecraft;
 
 import at.hugo.bukkit.plugin.shrinecraft.manager.DesignManager;
+import com.comphenix.protocol.PacketType;
+import com.comphenix.protocol.ProtocolLibrary;
+import com.comphenix.protocol.events.PacketContainer;
+import com.comphenix.protocol.wrappers.WrappedDataWatcher;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -16,7 +20,9 @@ import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.BlockVector;
 import org.jetbrains.annotations.NotNull;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -24,6 +30,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 
 public class Shrine {
     private final static @NotNull ItemStack NO_PREVIEW = new ItemStack(Material.BARRIER);
@@ -183,6 +190,10 @@ public class Shrine {
     private Long craftingStartTime = null;
 
     public void animate(long time, double radiansPerFrame, int ticksTillNextFrame) {
+        if (Bukkit.getPluginManager().isPluginEnabled("ProtocolLib")) {
+            ArrayList<Player> players = new ArrayList<>(1);
+            items.forEach(item -> reshowIfBurnig(item, players));
+        }
         if (!isCrafting) {
             shrineInfo.getIdleAnimation().animate(List.copyOf(items), itemRotationCenter, time, radiansPerFrame, ticksTillNextFrame);
         } else {
@@ -193,6 +204,51 @@ public class Shrine {
                 finishedCraftingConsumer.accept(this, shrineInfo.tryCraft(items));
             }
         }
+    }
+
+    private void reshowIfBurnig(final @NotNull Item item, final @NotNull Collection<Player> players) {
+        if (item.getFireTicks() <= 0 || item.getFireTicks() >= 300 || Math.abs(item.getLocation().getY() - itemRotationCenter.getY()) >= 0.01 || item.isInLava()) {
+            return;
+        }
+        item.setFireTicks(0);
+        if (players.isEmpty()) {
+            players.addAll(center.getNearbyPlayers(50));
+        }
+        if (players.isEmpty()) {
+            return;
+        }
+        PacketContainer spawnEntityPacket = new PacketContainer(PacketType.Play.Server.SPAWN_ENTITY);
+        PacketContainer entityMetadataPacket = new PacketContainer(PacketType.Play.Server.ENTITY_METADATA);
+        spawnEntityPacket.getEntityModifier(item.getWorld()).write(0, item);
+        spawnEntityPacket.getUUIDs().write(0, item.getUniqueId());
+        spawnEntityPacket.getIntegers().write(0, item.getEntityId());
+        spawnEntityPacket.getDoubles()
+                .write(0, item.getLocation().getX())
+                .write(1, item.getLocation().getY())
+                .write(2, item.getLocation().getZ());
+
+        // set velocity
+        spawnEntityPacket.getIntegers()
+                .write(1, (int) (item.getVelocity().getX() * 8000.0D))
+                .write(2, (int) (item.getVelocity().getY() * 8000.0D))
+                .write(3, (int) (item.getVelocity().getZ() * 8000.0D));
+        // pitch & yaw
+//        spawnEntityPacket.getIntegers()
+//                .write(4, 0)
+//                .write(5, 0);
+        spawnEntityPacket.getEntityTypeModifier().write(0, item.getType());
+
+        entityMetadataPacket.getEntityModifier(item.getWorld()).write(0, item);
+        entityMetadataPacket.getIntegers().write(0, item.getEntityId());
+        entityMetadataPacket.getWatchableCollectionModifier().write(0, WrappedDataWatcher.getEntityWatcher(item).getWatchableObjects());
+        players.forEach(player1 -> {
+            try {
+                ProtocolLibrary.getProtocolManager().sendServerPacket(player1, spawnEntityPacket);
+                ProtocolLibrary.getProtocolManager().sendServerPacket(player1, entityMetadataPacket);
+            } catch (InvocationTargetException e) {
+                plugin.getLogger().log(Level.SEVERE, e, () -> String.format("Something went wrong when sending item packets: %s", e.getCause()));
+            }
+        });
     }
 
     public @NotNull Player getPlayer() {

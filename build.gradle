@@ -26,9 +26,11 @@ repositories {
         }
     }
     // ProtocolLib
-//    maven { url 'https://repo.dmulloy2.net/repository/public/' }
+    maven { url 'https://repo.dmulloy2.net/repository/public/' }
     // WorldEdit
     maven { url 'https://maven.enginehub.org/repo/' }
+
+//    mavenLocal()
 }
 
 dependencies {
@@ -38,7 +40,7 @@ dependencies {
     compileOnly 'com.destroystokyo.paper:paper-api:1.16.5-R0.1-SNAPSHOT'
     compileOnly 'com.sk89q.worldedit:worldedit-core:7.2.5'
     compileOnly 'com.sk89q.worldedit:worldedit-bukkit:7.2.5'
-//    compileOnly 'com.comphenix.protocol:ProtocolLib:4.6.1-SNAPSHOT'
+    compileOnly 'com.comphenix.protocol:ProtocolLib:4.6.1-SNAPSHOT'
     compileOnly files('dependencies/CustomItemsAPI_PLACEHOLDER.jar')
     //system 'com.github.jojodmo:CustomItems:3.8.31'
 }
