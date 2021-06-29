@@ -152,7 +152,7 @@ public class Shrine {
         item.getPersistentDataContainer().set(plugin.getModifiedItemKey(), PersistentDataType.BYTE, (byte) 1);
         item.setVelocity(Utils.VECTOR_ZERO);
         item.setGravity(false);
-        previewItem.setInvulnerable(true);
+        item.setInvulnerable(true);
         item.setFireTicks(0);
         item.setCanMobPickup(false);
         item.setCanPlayerPickup(false);
