@@ -253,6 +253,10 @@ public class ShrineManager implements Listener {
             removeShrines(player);
             return;
         }
+        if (!event.getFrom().getWorld().equals(event.getTo().getWorld())) {
+            removeShrines(player);
+            return;
+        }
         getShrines(player).forEach(shrine -> {
             final Location loc = shrine.getLocation().clone();
             loc.setY(event.getTo().getY());
