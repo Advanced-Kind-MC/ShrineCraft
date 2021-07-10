@@ -1,9 +1,10 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 
 plugins {
-    id 'com.github.johnrengelman.shadow' version '7.0.0'
     id 'java'
+    id 'idea'
     id 'xyz.jpenilla.run-paper' version '1.0.3'
+    id 'com.github.johnrengelman.shadow' version '7.0.0'
 }
 
 group = groupId
@@ -73,6 +74,13 @@ sourceSets {
         java {
             srcDir('test')
         }
+    }
+}
+
+idea {
+    module {
+        downloadJavadoc true
+        downloadSources true
     }
 }
 
